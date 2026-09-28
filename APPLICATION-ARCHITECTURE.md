@@ -4369,6 +4369,12 @@ Provider credentials remain server-side only. Webhook signatures must be verifie
 
 Order state, payment state, and customer ledger state are separate concepts.
 
+> **Resolved (see `docs/decisions/DECISIONS.md` D-001, D-002):** the canonical order state machine is the one in
+> §7.2 (`PLACED … OUT_FOR_DELIVERY … COMPLETED`, plus `CANCELLED`, `REJECTED`, `DELIVERY_FAILED`); in the list below
+> `PENDING` means `PLACED` and `DISPATCHED` means `OUT_FOR_DELIVERY`. Payment status has two levels: §8 statuses
+> apply to orders and invoices; the payment states below apply to individual payment transactions (plus `CANCELLED`
+> for a voided manual payment). The payment method `UPI_MANUAL` below is `UPI` from §9.
+
 ## Order states
 
 ```text

@@ -1,0 +1,19 @@
+# Backend image (Podman/OCI). Multi-stage: build with Maven, run on a slim JRE as a non-root user.
+FROM docker.io/library/maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /src
+COPY pom.xml .
+RUN mvn -q -B dependency:go-offline
+COPY src ./src
+RUN mvn -q -B -DskipTests package && cp target/shopflow-backend-*.jar /app.jar
+
+FROM docker.io/library/eclipse-temurin:21-jre-alpine
+RUN addgroup -S shopflow && adduser -S shopflow -G shopflow && mkdir -p /data/storage && chown -R shopflow:shopflow /data
+WORKDIR /app
+COPY --from=build /app.jar /app/app.jar
+USER shopflow
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError" \
+    STORAGE_LOCAL_ROOT=/data/storage
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://localhost:8080/actuator/health/readiness | grep -q UP || exit 1
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

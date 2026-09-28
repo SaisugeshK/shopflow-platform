@@ -1,0 +1,177 @@
+spring:
+  application:
+    name: shopflow-backend
+  # Local, git-ignored overrides (e.g. DATABASE_PASSWORD). Real environment variables still win.
+  config:
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:../.env[.properties]
+  profiles:
+    default: dev
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/shopflow}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        timezone:
+          default_storage: NORMALIZE_UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+  jackson:
+    default-property-inclusion: non_null
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+  tomcat:
+    max-http-form-post-size: 2MB
+    max-swallow-size: 2MB
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  default-produces-media-type: application/json
+
+logging:
+  level:
+    root: INFO
+    com.shopflow: INFO
+
+app:
+  env: ${APP_ENV:dev}
+  business:
+    # The single business this deployment serves (seeded by V2 migration).
+    default-business-id: ${BUSINESS_ID:00000000-0000-0000-0000-000000000001}
+  security:
+    jwt-access-secret: ${JWT_ACCESS_SECRET:}
+    jwt-refresh-secret: ${JWT_REFRESH_SECRET:}
+    access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:P30D}
+    registration-token-ttl: PT30M
+    issuer: shopflow-platform
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
+  otp:
+    provider: ${OTP_PROVIDER:mock}
+    length: 6
+    ttl: PT5M
+    max-attempts: 5
+    resend-cooldown: PT30S
+    max-requests-per-mobile: 5
+    max-requests-per-mobile-window: PT15M
+    max-requests-per-ip: 30
+    max-requests-per-ip-window: PT1H
+    hash-secret: ${OTP_HASH_SECRET:}
+    provider-url: ${OTP_PROVIDER_URL:}
+    provider-key: ${OTP_PROVIDER_KEY:}
+    provider-timeout: PT10S
+  auth:
+    # ALLOW_LIMITED: pending customers can sign in and see their registration status only.
+    # REJECT: pending customers cannot sign in until approved.
+    pending-customer-login: ALLOW_LIMITED
+  payment:
+    provider: ${PAYMENT_PROVIDER:mock}
+    provider-url: ${PAYMENT_PROVIDER_URL:}
+    provider-key: ${PAYMENT_PROVIDER_KEY:}
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}
+    provider-timeout: PT15S
+  whatsapp:
+    provider: ${WHATSAPP_PROVIDER:mock}
+    provider-url: ${WHATSAPP_PROVIDER_URL:}
+    provider-token: ${WHATSAPP_PROVIDER_TOKEN:}
+    webhook-secret: ${WHATSAPP_WEBHOOK_SECRET:}
+    max-retries: 5
+    retry-base-delay: PT30S
+    provider-timeout: PT15S
+    # Recipient numbers ending with this suffix fail in the mock provider (test hook).
+    mock-failure-suffix: "9999"
+  einvoice:
+    provider: ${EINVOICE_PROVIDER:mock}
+    enabled: ${EINVOICE_ENABLED:false}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    local-root: ${STORAGE_LOCAL_ROOT:./data/storage}
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:}
+    bucket: ${OBJECT_STORAGE_BUCKET:}
+    access-key: ${OBJECT_STORAGE_ACCESS_KEY:}
+    secret-key: ${OBJECT_STORAGE_SECRET_KEY:}
+  dev-tools:
+    # Exposes /api/v1/dev/** helpers (latest mock OTP, mock gateway simulation). Never enable in production.
+    enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/devdata
+app:
+  security:
+    jwt-access-secret: ${JWT_ACCESS_SECRET:dev-only-access-secret-change-me-0123456789abcdef}
+    jwt-refresh-secret: ${JWT_REFRESH_SECRET:dev-only-refresh-secret-change-me-0123456789abcdef}
+    refresh-cookie-secure: false
+  otp:
+    hash-secret: ${OTP_HASH_SECRET:dev-only-otp-hash-secret-change-me}
+  payment:
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET:dev-only-payment-webhook-secret}
+  whatsapp:
+    webhook-secret: ${WHATSAPP_WEBHOOK_SECRET:dev-only-whatsapp-webhook-secret}
+  dev-tools:
+    enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+logging:
+  structured:
+    format:
+      console: ecs
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+app:
+  dev-tools:
+    enabled: false

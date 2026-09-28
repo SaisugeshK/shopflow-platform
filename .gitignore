@@ -1,0 +1,27 @@
+# Secrets and local overrides
+.env
+.env.*
+!.env.example
+
+# Build output
+target/
+dist/
+build/
+coverage/
+node_modules/
+*.log
+
+# Local storage / runtime data
+data/
+backend/data/
+
+# Test reports
+web/playwright-report/
+web/test-results/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

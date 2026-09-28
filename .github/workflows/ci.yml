@@ -1,0 +1,161 @@
+# CI pipeline (§84): lint → unit/integration tests → build → security checks → container build → migration validation.
+# Staging deploy, smoke tests and production approval are added when environments exist (see docs/RELEASE-GATES.md).
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (build, unit + integration tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      # Integration tests start PostgreSQL through Testcontainers (Docker is available on GitHub runners).
+      - name: Verify
+        working-directory: backend
+        run: ./mvnw -B verify
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports
+
+  web:
+    name: Web (lint, type-check, unit tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      - run: npm run typecheck
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  e2e:
+    name: Web E2E (Playwright against the real backend)
+    needs: [backend, web]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: shopflow
+          POSTGRES_USER: shopflow
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopflow" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: jdbc:postgresql://localhost:5432/shopflow
+      DATABASE_USERNAME: shopflow
+      DATABASE_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: maven }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm, cache-dependency-path: web/package-lock.json }
+      - name: Start backend (dev profile, mock providers)
+        working-directory: backend
+        run: |
+          ./mvnw -B -q -DskipTests package
+          nohup java -jar target/shopflow-backend-*.jar > backend.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8080/actuator/health && break; sleep 2; done
+      - run: npm ci && npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npm run e2e
+        working-directory: web
+      - name: API smoke test
+        run: python3 scripts/smoke_test.py http://localhost:8080
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            web/playwright-report
+            backend/backend.log
+
+  security:
+    name: Security checks (secrets, dependencies, SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: npm audit (production dependencies)
+        working-directory: web
+        run: npm ci && npm audit --omit=dev --audit-level=high
+      - name: Dependency and filesystem scan (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: CodeQL init
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin, javascript-typescript
+          build-mode: none
+      - name: CodeQL analyze
+        uses: github/codeql-action/analyze@v3
+
+  containers:
+    name: Container build + migration validation
+    needs: [backend, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images with Podman
+        run: |
+          podman build -t shopflow-backend:ci -f backend/Containerfile backend
+          podman build -t shopflow-web:ci -f web/Containerfile web
+      - name: Scan images (Trivy)
+        run: |
+          podman save shopflow-backend:ci -o backend.tar
+          podman save shopflow-web:ci -o web.tar
+          docker run --rm -v "$PWD:/w" aquasec/trivy:latest image --input /w/backend.tar --severity CRITICAL --exit-code 1 --ignore-unfixed
+          docker run --rm -v "$PWD:/w" aquasec/trivy:latest image --input /w/web.tar --severity CRITICAL --exit-code 1 --ignore-unfixed
+      - name: Migrations apply cleanly on an empty database
+        run: |
+          podman network create ci-net
+          podman run -d --name db --network ci-net -e POSTGRES_DB=shopflow -e POSTGRES_USER=shopflow -e POSTGRES_PASSWORD=ci docker.io/library/postgres:17-alpine
+          sleep 8
+          podman run --rm --network ci-net -e SPRING_PROFILES_ACTIVE=prod -e DATABASE_URL=jdbc:postgresql://db:5432/shopflow \
+            -e DATABASE_USERNAME=shopflow -e DATABASE_PASSWORD=ci -e JWT_ACCESS_SECRET=ci-secret-0123456789abcdef0123456789abcdef \
+            -e JWT_REFRESH_SECRET=ci-secret-0123456789abcdef0123456789abcdef -e OTP_HASH_SECRET=ci-secret-0123456789 \
+            -e PAYMENT_WEBHOOK_SECRET=ci-secret-0123456789 -e WHATSAPP_WEBHOOK_SECRET=ci-secret-0123456789 \
+            --entrypoint sh shopflow-backend:ci -c 'timeout 90 java -jar /app/app.jar --spring.main.web-application-type=none --spring.main.lazy-initialization=true || test $? -eq 124'

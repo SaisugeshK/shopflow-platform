@@ -1,0 +1,62 @@
+/* Design tokens (APPLICATION-ARCHITECTURE.md §59–§62). Change brand colours here only. */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+  --color-navy: #0f2747;
+  --color-accent: #06b6d4;
+  --color-accent-soft: #cffafe;
+  --color-teal: #0d9488;
+  --color-teal-soft: #ccfbf1;
+  --color-purple: #7c3aed;
+  --color-purple-soft: #ede9fe;
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+  --color-warning: #f59e0b;
+  --color-warning-strong: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-text: #0f172a;
+  --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-focus: #93c5fd;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --text-h1: clamp(1.625rem, 1.3rem + 1vw, 2rem);
+  --text-h2: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  --text-h3: 1.125rem;
+  --text-body: 0.9375rem;
+  --text-small: 0.8125rem;
+  --text-xs: 0.75rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 16px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 18px 48px rgb(15 23 42 / 0.16);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --sidebar-width: 256px;
+  --sidebar-collapsed: 72px;
+  --topbar-height: 60px;
+
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}

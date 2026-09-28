@@ -1,0 +1,26 @@
+spring:
+  flyway:
+    locations: classpath:db/migration
+    clean-disabled: false
+app:
+  security:
+    jwt-access-secret: test-access-secret-0123456789abcdef0123456789
+    jwt-refresh-secret: test-refresh-secret-0123456789abcdef0123456789
+    refresh-cookie-secure: false
+  otp:
+    hash-secret: test-otp-hash-secret-0123456789
+    max-requests-per-ip: 100000
+    max-requests-per-mobile: 5
+  payment:
+    webhook-secret: test-payment-webhook-secret-0123
+  whatsapp:
+    webhook-secret: test-whatsapp-webhook-secret-012
+    retry-base-delay: PT0.2S
+  storage:
+    local-root: ./target/test-storage
+  dev-tools:
+    enabled: true
+logging:
+  level:
+    root: WARN
+    com.shopflow: INFO
