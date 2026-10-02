@@ -13,7 +13,7 @@ Native app later.
 | API | Java 21, Spring Boot 4.1, Spring Security (JWT), JPA/Hibernate 7, Flyway, OpenPDF | `backend/` |
 | Database | PostgreSQL 17/18 | migrations in `backend/src/main/resources/db/migration` |
 | Web | React 19, TypeScript, Vite, TanStack Query, Recharts, Motion | `web/` |
-| Mobile | React Native (starts after the web + backend gate) | `mobile/` |
+| Mobile | React Native 0.86 / Expo SDK 57, Expo Router — one app for customers and Owner/Admin (D-027) | `mobile/` |
 | Containers | Podman (`Containerfile`s, `podman-compose.yml`) | root, `infrastructure/` |
 
 **Stage 1 uses mock providers only**: OTP, payment gateway, WhatsApp and e-invoice never contact real services and
@@ -36,14 +36,20 @@ Prerequisites: JDK 21, Node 24, PostgreSQL (local or Podman).
    npm ci
    npm run dev                     # http://localhost:5173 (proxies /api to :8080)
    ```
-4. **Sign in** with a seed account. In the `dev` profile the OTP is shown on the login screen in a "Demo OTP" toast
+4. **Mobile app** (optional, see `mobile/README.md`):
+   ```bash
+   cd mobile
+   npm ci
+   npx expo start                  # scan the QR with Expo Go (same Wi-Fi), or press w for http://localhost:8081
+   ```
+5. **Sign in** with a seed account. In the `dev` profile the OTP is shown on the login screen in a "Demo OTP" toast
    (demo mode, see D-026; set `OTP_SHOW_IN_RESPONSE=false` to turn it off). It is also printed in the backend log and returned by
    `GET /api/v1/dev/otp/latest?mobileNumber=…` (development only):
 
    | Role | Mobile | Lands on |
    |---|---|---|
-   | Owner | 9000000001 | `/app` owner dashboard |
-   | Admin | 9000000002 | `/app` operations dashboard |
+   | Owner | 9000000001 | `/app` owner dashboard (mobile: `/admin`) |
+   | Admin | 9000000002 | `/app` operations dashboard (mobile: `/admin`) |
    | Customer (approved, credit ₹50,000) | 9000000003 | `/shop` |
    | Customer (pending approval) | 9000000004 | registration status |
    | New number | any other | customer registration |
@@ -65,6 +71,8 @@ On Windows, if `localhost` port forwarding from the Podman machine does not work
 | Backend unit + integration | `cd backend && ./mvnw verify` | tax engine, amounts in words, numbering, state machine, OTP matrix, token rotation, authorization, orders, stock concurrency, invoices, payments/webhooks, returns, purchases, reports, audit (real PostgreSQL: `TEST_DATABASE_URL` or Testcontainers) |
 | Web unit/component | `cd web && npm test` | formatting, API helpers, UI states, accessibility behaviour |
 | Web E2E | `cd web && npm run e2e` (backend running; `PW_CHANNEL=chrome` to use installed Chrome) | order-to-cash in the browser, authorization, pending customer |
+| Mobile unit/component | `cd mobile && npm test` | formatting, API helpers, role routing, menu permissions, order timeline, tax breakdown, form controls |
+| Mobile E2E | `cd mobile && npm run e2e` (backend running; `PW_CHANNEL=chrome`) | order-to-cash on a phone viewport: customer checkout → staff workflow → payment → customer invoice; online payment via mock gateway; permissions; new retailer registration |
 | API smoke | `python scripts/smoke_test.py http://localhost:8080` | end-to-end API flow incl. mock online payment and refunds |
 | Postman | `npx newman run docs/postman/shopflow-platform.postman_collection.json -e docs/postman/shopflow-platform.local.postman_environment.json` | contract checks for every read endpoint + order-to-cash workflow |
 | Backup/restore | `scripts/backup-restore-test.sh shopflow` | dump → restore to scratch DB → compare financial totals |
@@ -87,7 +95,7 @@ backend/            Spring Boot API (modules: auth, users, business, customers, 
                     purchases, orders, billing, payments, returns, reports, dashboard, notifications, audit,
                     files, integrations/{otp,payment,whatsapp,einvoice,storage})
 web/                React web app (Owner/Admin app under /app, customer portal under /shop)
-mobile/             Reserved for the React Native app
+mobile/             React Native (Expo) app: customer shop under /shop, Owner/Admin under /admin (see mobile/README.md)
 docs/               OpenAPI, Postman, ERD, business rules, decisions, release gates, third-party costs
 infrastructure/     Podman and deployment notes
 scripts/            smoke test, Postman generator, backup/restore

@@ -204,7 +204,37 @@ earlier run showed placeholder bodies overwrite settings.
 
 Until a paid SMS provider is activated, demos and testing use the mock OTP provider. With
 `app.otp.show-in-response` (env `OTP_SHOW_IN_RESPONSE`), `POST /api/v1/auth/otp/request` also returns `demoOtp`, and
-the login screen shows it in a toast with a Copy button and a "Demo mode" label. It is on by default in the `dev`
+the login screen (web and mobile) shows it in a 20-second toast (no copy button; the mobile app also clears it on sign-in) and a "Demo mode" label. It is on by default in the `dev`
 profile and off everywhere else. The application refuses to start if it is enabled with any provider other than
 `mock`, so a real OTP can never be echoed. It lets anyone sign in as any number, so it must be off before real
 customers use the app.
+
+## D-027 Mobile app started before the formal §119 sign-off, covering every role
+
+On 2026-10-03 the project owner asked to start the React Native app immediately, with every feature the web app has.
+§0A/§119 say mobile starts after the web + backend gate is formally accepted; three gate items were still open
+(fresh-clone start, invoice PDF design sign-off, backend dependency scan — see `docs/RELEASE-GATES.md`). The owner's
+explicit instruction takes precedence; the open items stay tracked.
+
+§6.3 describes a customer mobile app. Per the same instruction the app also contains the Owner/Admin screens. It is
+one Expo app: the signed-in role decides the area (`/shop` for customers, `/admin` for staff), exactly like the web
+app's `/shop` and `/app`. Staff tabs and the "More" menu are filtered by the same permissions as the web sidebar, and
+the backend enforces them regardless.
+
+## D-028 Mobile technology and session storage
+
+Expo SDK 57 with Expo Router (recommended React Native framework; file routes in `mobile/src/app`, screens in
+`mobile/src/screens` per §57). The app reuses the web app's API types, formatting rules and status colours. Mobile
+clients do not send `X-Client-Type: web`, so the API returns the refresh token in the body; it is kept only in
+`expo-secure-store` (Keychain / Keystore). In the browser build (used for development and the Playwright E2E suite)
+the refresh token is held in memory only. Charts are drawn with plain views (no native chart dependency); tables
+become card/list rows on phones. Dev-profile CORS also allows `http://localhost:8081` (the Expo web dev server);
+native apps send no `Origin` header.
+
+## D-029 Mobile keyboard handling
+
+Expo SDK 57 apps draw edge-to-edge on Android, so the window is not resized when the on-screen keyboard opens and
+`KeyboardAvoidingView` alone left inputs hidden (seen on a real device on the login screen). Every scrolling screen,
+bottom sheet and picker now uses `KeyboardAwareScroll` / `useKeyboardOverlap`: the container measures how much of it
+the keyboard covers, pads itself by that amount (footers stay above the keyboard) and scrolls the focused input into
+view, also when focus moves between fields. It works in Expo Go (no native keyboard library needed).

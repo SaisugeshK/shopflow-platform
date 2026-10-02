@@ -63,6 +63,46 @@ A feature is not complete until:
 
 ------------------------------------------------------------------------
 
+## 0.1 Implementation Status and Approved Changes (living log)
+
+This section records what has been built and every change to this document approved by the product owner. Details
+and reasons are in `docs/decisions/DECISIONS.md` (D-xxx); acceptance evidence is in `docs/RELEASE-GATES.md`.
+Last updated: 2026-10-03.
+
+### Status by stage
+
+| Stage | Status |
+|---|---|
+| Stage 1 — mock providers | Done. OTP, payment gateway, WhatsApp, e-invoice and storage run as mocks/local adapters behind the production interfaces. |
+| Stage 2 — web + backend | Built and verified (backend 86 tests, web unit + E2E, Postman, backup/restore, Podman clean start). §119 gate **not yet formally signed off**: fresh-clone start, invoice PDF design sign-off and a backend dependency scan are open. |
+| Stage 3 — production providers | Not started (no production adapters, S3 storage, shared rate limiter or UPI QR image yet). |
+| Stage 4 — React Native mobile | Built: one Expo app for customers and Owner/Admin (see below). |
+| Stage 5 — mobile acceptance | Partly verified: unit tests, Android/iOS bundles and Playwright journeys on a phone viewport pass; real-device testing, MASVS review, push notifications and deep links are open. |
+
+### Approved changes to this document
+
+1. **Order and payment states (D-001, D-002).** The §7.2 order state machine is canonical; payment status has two
+   levels (order/invoice §8, payment transaction §110). See the note in §110.
+2. **Demo OTP mode (D-026).** Until a paid SMS provider is activated, the backend can return the mock OTP in the
+   `POST /api/v1/auth/otp/request` response (`demoOtp`) and the web and mobile login screens show it in a
+   20-second toast and a "Demo mode" label. Controlled by `app.otp.show-in-response` / `OTP_SHOW_IN_RESPONSE`: on
+   in the `dev` profile, off by default elsewhere, and the backend refuses to start if it is on with a real OTP
+   provider. It is not a universal bypass (each code is random and single-use) and must be off before real
+   customers use the app. Extends the rule at the end of §108.
+3. **Mobile started before the §119 sign-off and covers every role (D-027).** At the product owner's request the
+   React Native app was built immediately, with every web feature: customers get the §6.3 app; Owner/Admin get the
+   management screens in the same app. The open §119 items remain tracked.
+4. **Mobile technology (D-028).** Expo SDK 57 + Expo Router; refresh token only in the Keychain/Keystore
+   (`expo-secure-store`); charts drawn with plain views; dev-profile CORS also allows the Expo web dev server
+   (`http://localhost:8081`). Structure in §57.
+5. **Mobile keyboard behaviour (D-029).** Every mobile screen, bottom sheet and picker moves above the on-screen keyboard
+   (Android draws edge-to-edge and does not resize the window) and scrolls the focused field into view; the login
+   header turns compact while typing. Shared implementation: `mobile/src/components/ui/KeyboardAware.tsx`.
+6. **Web UX additions.** Search fields have a clear (×) button; header menus close on outside click / Escape; the
+   sidebar scrollbar is hidden; unexpected rendering errors show a friendly error screen.
+
+------------------------------------------------------------------------
+
 # 0A. Development Strategy — MOCK FIRST, WEB + BACKEND FIRST
 
 This is a **mandatory delivery strategy** for the first release.
@@ -224,6 +264,9 @@ The production providers must implement the **same interfaces** used by the mock
 ## Stage 4 — React Native Mobile
 
 Mobile development starts **only after the web + backend milestone is accepted**.
+
+> **Update (2026-10-03, D-027):** at the product owner's request mobile development started before the formal §119
+> sign-off. The app is in `mobile/` and contains both the customer app and the Owner/Admin screens; see §0.1.
 
 The mobile application will use the exact same backend APIs, authentication model, business rules, invoice logic, payment logic, stock rules, customer rules, and permissions.
 
@@ -627,6 +670,16 @@ Recommended mobile bottom navigation:
 ``` text
 Home | Products | Cart | Orders | Profile
 ```
+
+> **Implemented (D-027):** the customer tabs above, with Invoices, Payments, Credit/Outstanding, Returns and
+> Notifications reached from Home and Profile. The same app also serves Owner/Admin (decided by the signed-in role):
+>
+> ``` text
+> Dashboard | Orders | Products | Customers | More
+> ```
+>
+> "More" lists every other §6.1/§6.2 screen (billing, payments, returns, stock, purchases, suppliers, reports,
+> users, settings, audit), filtered by the user's permissions exactly like the web sidebar.
 
 ------------------------------------------------------------------------
 
@@ -2552,6 +2605,22 @@ mobile/
 │   └── theme/
 ```
 
+> **Implemented structure (D-028):** Expo Router needs route files under `src/app`, so routes are thin files that
+> export the screens kept in `src/screens` (the folders above). Actual layout:
+>
+> ``` text
+> mobile/src/
+> ├── app/          routes: login, register, registration-status, shop/(tabs)+stack, admin/(tabs)+stack
+> ├── screens/      auth, home, products, cart, checkout, orders, invoices, payments, profile, admin
+> ├── components/   ui (design system incl. KeyboardAware), shop, admin, shared
+> ├── features/     session, shop, catalog, notifications
+> ├── navigation/   staff menu + permission filter
+> ├── services/     api client, config, secure token storage, documents (PDF share)
+> ├── store/  hooks/  utils/  theme/
+> └── __tests__/    unit tests        (mobile/e2e: Playwright journeys on a phone viewport)
+> ```
+
+
 ------------------------------------------------------------------------
 
 # 58. UI/UX DESIGN SYSTEM
@@ -4308,6 +4377,10 @@ Concurrent verification  -> safe/idempotent behavior
 
 Development may expose a test-only OTP view/log, but there must be no universal production bypass such as `123456`.
 
+> **Demo mode (D-026):** the test-only OTP view is the "Demo OTP" toast/label on the login screens, fed by
+> `demoOtp` in the OTP request response. Allowed only with the mock OTP provider (startup fails otherwise) and off
+> outside the `dev` profile unless `OTP_SHOW_IN_RESPONSE=true` is set for a demo.
+
 # 109. WhatsApp — Official Production Boundary
 
 No real WhatsApp messages are sent during initial development.
@@ -4669,6 +4742,9 @@ Rules:
 - security/auth changes require security tests
 
 # 119. Web + Backend Acceptance Gate
+
+> **Status (2026-10-03):** all items verified except fresh-clone start, invoice PDF design sign-off and a backend
+> dependency scan; see `docs/RELEASE-GATES.md`. Mobile started before sign-off at the owner's request (D-027).
 
 This is the formal gate before mobile development.
 

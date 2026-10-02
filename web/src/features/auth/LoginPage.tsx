@@ -48,15 +48,7 @@ export function LoginPage() {
       setCooldown(c.resendAfterSeconds)
       if (c.demoOtp) {
         const code = c.demoOtp
-        toast.show('info', `Demo OTP: ${code}`, 'Demo mode: no SMS is sent. Use this code to sign in.', {
-          duration: 30_000,
-          action: {
-            label: 'Copy',
-            onClick: () => {
-              navigator.clipboard?.writeText(code).then(() => toast.success('OTP copied'), () => undefined)
-            },
-          },
-        })
+        toast.show('info', `Demo OTP: ${code}`, 'Demo mode: no SMS is sent. Use this code to sign in.', { duration: 20_000 })
       }
     },
   })

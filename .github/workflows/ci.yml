@@ -57,6 +57,32 @@ jobs:
       - run: npm run build
         working-directory: web
 
+  mobile:
+    name: Mobile (lint, type-check, unit tests, Android + iOS bundles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+        working-directory: mobile
+      - run: npx expo lint
+        working-directory: mobile
+      - run: npm run typecheck
+        working-directory: mobile
+      - run: npm test -- --ci
+        working-directory: mobile
+      - name: Expo doctor (SDK compatibility)
+        run: npx --yes expo-doctor
+        working-directory: mobile
+      # Proves the JavaScript bundles compile for both platforms; signed store builds use EAS (see mobile/README.md).
+      - name: Bundle for Android and iOS
+        run: npx expo export --platform android --platform ios --output-dir dist-native
+        working-directory: mobile
+
   e2e:
     name: Web E2E (Playwright against the real backend)
     needs: [backend, web]
@@ -117,6 +143,11 @@ jobs:
       - name: npm audit (production dependencies)
         working-directory: web
         run: npm ci && npm audit --omit=dev --audit-level=high
+      # Gated on critical: the only high findings are node-forge inside the Expo CLI (build-time code signing, not in
+      # the app bundle) with no patched release yet. Tracked in docs/RELEASE-GATES.md; tighten when Expo ships a fix.
+      - name: npm audit (mobile production dependencies)
+        working-directory: mobile
+        run: npm ci && npm audit --omit=dev --audit-level=critical
       - name: Dependency and filesystem scan (Trivy)
         uses: aquasecurity/trivy-action@0.28.0
         with:

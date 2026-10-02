@@ -152,6 +152,8 @@ app:
     jwt-access-secret: ${JWT_ACCESS_SECRET:dev-only-access-secret-change-me-0123456789abcdef}
     jwt-refresh-secret: ${JWT_REFRESH_SECRET:dev-only-refresh-secret-change-me-0123456789abcdef}
     refresh-cookie-secure: false
+    # 5173 = web (Vite), 8081 = mobile app running in a browser (Expo web). Native apps send no Origin header.
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8081}
   otp:
     hash-secret: ${OTP_HASH_SECRET:dev-only-otp-hash-secret-change-me}
     show-in-response: ${OTP_SHOW_IN_RESPONSE:true}
