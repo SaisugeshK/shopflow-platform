@@ -33,7 +33,13 @@ public record AppProperties(
     public record Otp(String provider, int length, Duration ttl, int maxAttempts, Duration resendCooldown,
                       int maxRequestsPerMobile, Duration maxRequestsPerMobileWindow, int maxRequestsPerIp,
                       Duration maxRequestsPerIpWindow, String hashSecret, String providerUrl, String providerKey,
-                      Duration providerTimeout) {
+                      Duration providerTimeout, boolean showInResponse) {
+        public Otp {
+            // Demo-only: the OTP is echoed in the API response. Refuse to combine that with a real SMS provider.
+            if (showInResponse && !"mock".equalsIgnoreCase(provider)) {
+                throw new IllegalStateException("app.otp.show-in-response may only be enabled with the mock OTP provider");
+            }
+        }
     }
 
     public record Auth(PendingCustomerLogin pendingCustomerLogin) {

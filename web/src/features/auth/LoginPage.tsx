@@ -6,6 +6,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Feedback'
+import { useToast } from '@/components/ui/Toast'
 import { Field, OTPInput, PhoneInput } from '@/components/ui/Form'
 import { api, ApiError } from '@/services/api'
 import type { AuthResponse } from '@/services/api'
@@ -17,6 +18,8 @@ interface Challenge {
   maskedMobile: string
   expiresInSeconds: number
   resendAfterSeconds: number
+  /** Present only when the server runs in demo mode (mock OTP provider, no SMS sent). */
+  demoOtp?: string
 }
 
 /**
@@ -29,6 +32,7 @@ export function LoginPage() {
   const [otp, setOtp] = useState('')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [cooldown, setCooldown] = useState(0)
+  const toast = useToast()
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -42,6 +46,18 @@ export function LoginPage() {
       setChallenge(c)
       setOtp('')
       setCooldown(c.resendAfterSeconds)
+      if (c.demoOtp) {
+        const code = c.demoOtp
+        toast.show('info', `Demo OTP: ${code}`, 'Demo mode: no SMS is sent. Use this code to sign in.', {
+          duration: 30_000,
+          action: {
+            label: 'Copy',
+            onClick: () => {
+              navigator.clipboard?.writeText(code).then(() => toast.success('OTP copied'), () => undefined)
+            },
+          },
+        })
+      }
     },
   })
 
@@ -129,7 +145,11 @@ export function LoginPage() {
                     {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
                   </Button>
                 </div>
-                {import.meta.env.DEV && (
+                {challenge.demoOtp ? (
+                  <p className="xs muted" style={{ textAlign: 'center' }}>
+                    <span className="badge tone-warning">Demo mode</span> No SMS is sent. Your code is <strong>{challenge.demoOtp}</strong>.
+                  </p>
+                ) : import.meta.env.DEV && (
                   <p className="xs muted" style={{ textAlign: 'center' }}>Development: the mock OTP is printed in the backend log.</p>
                 )}
               </form>

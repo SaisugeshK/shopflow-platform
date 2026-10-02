@@ -98,6 +98,9 @@ app:
     max-requests-per-mobile: 5
     max-requests-per-mobile-window: PT15M
     max-requests-per-ip: 30
+    # Demo only: return the OTP in the /otp/request response so the login screen can show it.
+    # Allowed only with the mock provider (startup fails otherwise). Turn off before real customers use the app.
+    show-in-response: ${OTP_SHOW_IN_RESPONSE:false}
     max-requests-per-ip-window: PT1H
     hash-secret: ${OTP_HASH_SECRET:}
     provider-url: ${OTP_PROVIDER_URL:}
@@ -151,6 +154,7 @@ app:
     refresh-cookie-secure: false
   otp:
     hash-secret: ${OTP_HASH_SECRET:dev-only-otp-hash-secret-change-me}
+    show-in-response: ${OTP_SHOW_IN_RESPONSE:true}
   payment:
     webhook-secret: ${PAYMENT_WEBHOOK_SECRET:dev-only-payment-webhook-secret}
   whatsapp:

@@ -1,5 +1,6 @@
 package com.shopflow.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -17,7 +18,9 @@ public final class AuthDtos {
     public record OtpRequestBody(@NotBlank @Size(max = 20) String mobileNumber) {
     }
 
-    public record OtpRequestResponse(UUID requestId, String maskedMobile, long expiresInSeconds, long resendAfterSeconds) {
+    /** {@code demoOtp} is present only in demo mode (app.otp.show-in-response with the mock provider); never in production. */
+    public record OtpRequestResponse(UUID requestId, String maskedMobile, long expiresInSeconds, long resendAfterSeconds,
+                                     @JsonInclude(JsonInclude.Include.NON_NULL) String demoOtp) {
     }
 
     public record OtpVerifyBody(@NotBlank @Size(max = 20) String mobileNumber,

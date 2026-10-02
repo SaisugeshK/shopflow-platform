@@ -84,7 +84,8 @@ public class OtpService {
             throw new BusinessException(ErrorCode.AUTH_OTP_DELIVERY_FAILED,
                     e.timeout() ? "OTP service timed out. Please try again." : "Could not send the OTP. Please try again.");
         }
-        return new OtpChallenge(requestId, mobile, MobileNumbers.mask(mobile), props.ttl().toSeconds(), props.resendCooldown().toSeconds());
+        return new OtpChallenge(requestId, mobile, MobileNumbers.mask(mobile), props.ttl().toSeconds(), props.resendCooldown().toSeconds(),
+                props.showInResponse() ? otp : null);
     }
 
     /**
@@ -151,6 +152,6 @@ public class OtpService {
     private enum Outcome { OK, INVALID, EXPIRED, LOCKED }
 
     public record OtpChallenge(UUID requestId, String mobileNumber, String maskedMobile, long expiresInSeconds,
-                               long resendAfterSeconds) {
+                               long resendAfterSeconds, String demoOtp) {
     }
 }

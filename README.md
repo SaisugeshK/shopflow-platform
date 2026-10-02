@@ -36,7 +36,8 @@ Prerequisites: JDK 21, Node 24, PostgreSQL (local or Podman).
    npm ci
    npm run dev                     # http://localhost:5173 (proxies /api to :8080)
    ```
-4. **Sign in** with a seed account — the OTP is printed in the backend log and returned by
+4. **Sign in** with a seed account. In the `dev` profile the OTP is shown on the login screen in a "Demo OTP" toast
+   (demo mode, see D-026; set `OTP_SHOW_IN_RESPONSE=false` to turn it off). It is also printed in the backend log and returned by
    `GET /api/v1/dev/otp/latest?mobileNumber=…` (development only):
 
    | Role | Mobile | Lands on |

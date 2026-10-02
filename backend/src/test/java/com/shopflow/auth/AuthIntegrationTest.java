@@ -48,6 +48,12 @@ class AuthIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void otpIsNotEchoedInTheResponseUnlessDemoModeIsOn() {
+        JsonNode r = request(data.owner());
+        assertThat(r.has("demoOtp")).isFalse();
+    }
+
+    @Test
     void wrongOtpIsRejectedAndOtpIsNotStoredInPlaintext() {
         String mobile = data.admin();
         JsonNode r = request(mobile);

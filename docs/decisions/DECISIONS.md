@@ -199,3 +199,12 @@ Testcontainers (CI). The Podman stack uses its own PostgreSQL 17 container on po
 the curated "Workflow (order to cash)" folder assert exact results. Generated write requests are reference examples
 with placeholder bodies and are skipped unless `runWriteExamples=true` (only against a disposable database) — an
 earlier run showed placeholder bodies overwrite settings.
+
+## D-026 Demo OTP shown on the login screen
+
+Until a paid SMS provider is activated, demos and testing use the mock OTP provider. With
+`app.otp.show-in-response` (env `OTP_SHOW_IN_RESPONSE`), `POST /api/v1/auth/otp/request` also returns `demoOtp`, and
+the login screen shows it in a toast with a Copy button and a "Demo mode" label. It is on by default in the `dev`
+profile and off everywhere else. The application refuses to start if it is enabled with any provider other than
+`mock`, so a real OTP can never be echoed. It lets anyone sign in as any number, so it must be off before real
+customers use the app.

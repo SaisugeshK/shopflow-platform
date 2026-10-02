@@ -50,7 +50,7 @@ public class AuthController {
     public ApiResponse<OtpRequestResponse> requestOtp(@Valid @RequestBody OtpRequestBody body) {
         OtpService.OtpChallenge challenge = otpService.request(body.mobileNumber(), RequestContext.clientIp());
         return ApiResponse.ok(new OtpRequestResponse(challenge.requestId(), challenge.maskedMobile(),
-                challenge.expiresInSeconds(), challenge.resendAfterSeconds()), "OTP sent");
+                challenge.expiresInSeconds(), challenge.resendAfterSeconds(), challenge.demoOtp()), "OTP sent");
     }
 
     @PostMapping("/otp/verify")

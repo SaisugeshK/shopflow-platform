@@ -5,15 +5,22 @@ import type { ReactNode } from 'react'
 import { ApiError } from '@/services/api'
 
 type Tone = 'success' | 'error' | 'warning' | 'info'
+export interface ToastOptions {
+  /** Auto-dismiss delay in ms (default 4s, errors 7s). */
+  duration?: number
+  action?: { label: string; onClick: () => void }
+}
+
 interface Toast {
   id: number
   tone: Tone
   title: string
   message?: string
+  action?: ToastOptions['action']
 }
 
 interface ToastApi {
-  show: (tone: Tone, title: string, message?: string) => void
+  show: (tone: Tone, title: string, message?: string, options?: ToastOptions) => void
   success: (title: string, message?: string) => void
   error: (error: unknown, fallback?: string) => void
 }
@@ -25,10 +32,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
   const show = useCallback(
-    (tone: Tone, title: string, message?: string) => {
+    (tone: Tone, title: string, message?: string, options?: ToastOptions) => {
       const id = nextId++
-      setToasts((t) => [...t.slice(-3), { id, tone, title, message }])
-      setTimeout(() => dismiss(id), tone === 'error' ? 7000 : 4000)
+      setToasts((t) => [...t.slice(-3), { id, tone, title, message, action: options?.action }])
+      setTimeout(() => dismiss(id), options?.duration ?? (tone === 'error' ? 7000 : 4000))
     },
     [dismiss],
   )
@@ -62,6 +69,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <strong>{t.title}</strong>
                 {t.message && <div className="small muted">{t.message}</div>}
               </div>
+              {t.action && (
+                <button className="btn btn-secondary btn-sm" onClick={t.action.onClick}>{t.action.label}</button>
+              )}
               <button className="icon-btn" style={{ width: 24, height: 24 }} aria-label="Dismiss" onClick={() => dismiss(t.id)}>
                 <X size={14} />
               </button>

@@ -2,7 +2,8 @@ import { expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 /**
- * Signs in through the real OTP screens; the OTP is read from the backend's development-only endpoint.
+ * Signs in through the real OTP screens. The OTP comes from the demo-mode toast when the server shows it,
+ * otherwise from the backend's development-only endpoint.
  * If the server's resend cooldown is active (e.g. tests re-run quickly), waits it out and retries.
  */
 export async function login(page: Page, mobile10: string) {
@@ -20,9 +21,15 @@ export async function login(page: Page, mobile10: string) {
     await page.waitForTimeout((seconds + 1) * 1000)
   }
   await expect(heading).toBeVisible()
-  const res = await page.request.get(`/api/v1/dev/otp/latest?mobileNumber=${mobile10}`)
-  expect(res.ok()).toBeTruthy()
-  const otp: string = (await res.json()).data.otp
+  const demo = page.getByText(/^Demo OTP: \d{6}$/).last()
+  let otp: string
+  if (await demo.isVisible()) {
+    otp = /\d{6}/.exec((await demo.textContent()) ?? '')![0]
+  } else {
+    const res = await page.request.get(`/api/v1/dev/otp/latest?mobileNumber=${mobile10}`)
+    expect(res.ok()).toBeTruthy()
+    otp = (await res.json()).data.otp
+  }
   await page.getByLabel('Digit 1').click()
   await page.keyboard.type(otp)
 }
