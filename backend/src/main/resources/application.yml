@@ -130,12 +130,15 @@ app:
     provider: ${EINVOICE_PROVIDER:mock}
     enabled: ${EINVOICE_ENABLED:false}
   storage:
+    # local (dev/Podman) or gcs (production, GcsStorageProvider — credentials come from the runtime's Application
+    # Default Credentials, e.g. the Cloud Run service identity; no access/secret keys are used for gcs).
     provider: ${STORAGE_PROVIDER:local}
     local-root: ${STORAGE_LOCAL_ROOT:./data/storage}
     endpoint: ${OBJECT_STORAGE_ENDPOINT:}
     bucket: ${OBJECT_STORAGE_BUCKET:}
     access-key: ${OBJECT_STORAGE_ACCESS_KEY:}
     secret-key: ${OBJECT_STORAGE_SECRET_KEY:}
+    gcs-project: ${GCS_PROJECT_ID:}
   dev-tools:
     # Exposes /api/v1/dev/** helpers (latest mock OTP, mock gateway simulation). Never enable in production.
     enabled: false
@@ -181,3 +184,12 @@ springdoc:
 app:
   dev-tools:
     enabled: false
+# Cloud Run (GCP) deployment notes — no defaults are set here; every value below must come from the environment
+# (Secret Manager or --set-env-vars), so a misconfigured prod deploy fails fast instead of falling back silently:
+#   DATABASE_URL      jdbc:postgresql:///<db>?cloudSqlInstance=<project>:<region>:<instance>&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+#   STORAGE_PROVIDER  gcs
+#   OBJECT_STORAGE_BUCKET   the private GCS bucket name
+#   JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, OTP_HASH_SECRET, PAYMENT_WEBHOOK_SECRET, WHATSAPP_WEBHOOK_SECRET,
+#   DATABASE_PASSWORD  from Secret Manager (--set-secrets), never baked into the image
+#   CORS_ALLOWED_ORIGINS  the deployed app's own https URL is enough once the frontend is served from the same
+#                          origin (see the single-image Containerfile); CORS is not needed for same-origin requests

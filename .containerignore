@@ -1,0 +1,20 @@
+# Root Containerfile build context (single GCP/Cloud Run image). Only backend/ and web/ are actually copied in.
+.git
+.github
+mobile
+infrastructure
+docs
+scripts
+backend/target
+backend/data
+web/node_modules
+web/dist
+web/coverage
+web/test-results
+web/playwright-report
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+NUL

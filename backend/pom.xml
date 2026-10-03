@@ -18,6 +18,9 @@
 		<springdoc.version>3.1.1</springdoc.version>
 		<openpdf.version>3.0.5</openpdf.version>
 		<fastexcel.version>0.20.2</fastexcel.version>
+		<!-- GCP deployment (production storage + Cloud SQL): not used by the dev/Podman profiles. -->
+		<google-cloud-storage.version>2.47.0</google-cloud-storage.version>
+		<cloud-sql-socket-factory.version>1.19.1</cloud-sql-socket-factory.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -66,6 +69,19 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<!-- Production image storage (app.storage.provider=gcs); GcsStorageProvider. -->
+		<dependency>
+			<groupId>com.google.cloud</groupId>
+			<artifactId>google-cloud-storage</artifactId>
+			<version>${google-cloud-storage.version}</version>
+		</dependency>
+		<!-- Lets the JDBC URL connect to Cloud SQL over its private Unix socket (no public DB IP, no manual proxy
+		     container); Cloud Run supplies the socket when the "add Cloud SQL instances" deploy option is used. -->
+		<dependency>
+			<groupId>com.google.cloud.sql</groupId>
+			<artifactId>postgres-socket-factory</artifactId>
+			<version>${cloud-sql-socket-factory.version}</version>
 		</dependency>
 
 		<dependency>

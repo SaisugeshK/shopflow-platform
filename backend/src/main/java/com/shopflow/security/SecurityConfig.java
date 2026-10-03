@@ -13,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -65,6 +67,9 @@ public class SecurityConfig {
             "/v3/api-docs.yaml",
             "/swagger-ui.html",
             "/swagger-ui/**",
+            // Product images / business logo: plain <img> tags can't send a bearer token, so this must be public
+            // (pre-existing gap — FileController already restricts it to non-sensitive purposes; see its Javadoc).
+            "/api/v1/files/public/**",
     };
 
     @Bean
@@ -77,8 +82,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(properties)))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers
+                        // Covers both the JSON API and, in the single-image deployment, the bundled SPA (fonts/blob:
+                        // for the invoice PDF preview and exported images) — same policy as web/nginx.conf.
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"))
+                                "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                                        + "font-src 'self' https://fonts.gstatic.com; frame-src 'self' blob:; connect-src 'self'; "
+                                        + "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"))
                         .referrerPolicy(ref -> ref.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .frameOptions(frame -> frame.deny()))
                 .authorizeHttpRequests(auth -> {
@@ -90,12 +99,21 @@ public class SecurityConfig {
                     auth.requestMatchers("/actuator/**").denyAll();
                     // A registration token may only submit the registration; everything else needs an access token.
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/customer-registration").hasAuthority("REGISTRATION");
-                    auth.anyRequest().access((authentication, context) -> {
+                    AuthorizationManager<RequestAuthorizationContext> requireRealSession = (authentication, context) -> {
                         Authentication a = authentication.get();
                         boolean allowed = a != null && a.isAuthenticated() && !(a instanceof AnonymousAuthenticationToken)
                                 && a.getAuthorities().stream().noneMatch(g -> "REGISTRATION".equals(g.getAuthority()));
                         return new AuthorizationDecision(allowed);
-                    });
+                    };
+                    // Every remaining API call needs a real session, same rule as before.
+                    auth.requestMatchers("/api/**").access(requireRealSession);
+                    // Everything else is either the bundled SPA shell/assets (single-image deployment, SpaWebConfig)
+                    // or nothing — public because a plain browser navigation carries no bearer token; the app itself
+                    // still calls the authenticated API above for any real data. Not reached when static/index.html
+                    // is absent (e.g. local dev with the web app on its own server), since nothing is registered there.
+                    auth.requestMatchers(HttpMethod.GET, "/**").permitAll();
+                    auth.requestMatchers(HttpMethod.HEAD, "/**").permitAll();
+                    auth.anyRequest().access(requireRealSession);
                 })
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter))
