@@ -196,6 +196,9 @@ springdoc:
 app:
   dev-tools:
     enabled: false
+  otp:
+    # The mock provider's simulated failures (numbers ending 0000/1111) are for development tests only.
+    mock-simulate-failures: false
 # Cloud Run (GCP) deployment notes — no defaults are set here; every value below must come from the environment
 # (Secret Manager or --set-env-vars), so a misconfigured prod deploy fails fast instead of falling back silently:
 #   DATABASE_URL      jdbc:postgresql:///<db>?cloudSqlInstance=<project>:<region>:<instance>&socketFactory=com.google.cloud.sql.postgres.SocketFactory
