@@ -214,7 +214,7 @@ public class OrderController {
                 i.getAcceptedQuantity(), i.getPackedQuantity(), i.getDeliveredQuantity(), i.getCancelledQuantity(),
                 i.getReturnedQuantity(), i.getInvoicedQuantity(), i.pendingQuantity(), i.getRate(), i.getDiscountAmount(),
                 i.getTaxRate(), i.getTaxableAmount(), i.getCgstAmount().add(i.getSgstAmount()).add(i.getIgstAmount()),
-                i.getLineTotal())).toList() : null;
+                i.getLineTotal(), i.getUnitFactor(), i.isFreeItem(), i.getSchemeName())).toList() : null;
         List<OrderInvoiceRef> invoiceRefs = null;
         DeliveryResponse delivery = null;
         PaymentIntentResponse pending = null;

@@ -5,10 +5,10 @@ import {
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Button } from '@/components/ui/Button'
 import { Card, DataTable, PageHeader, StatCard, StatusBadge } from '@/components/ui/Data'
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/Feedback'
 import { Input, Select } from '@/components/ui/Form'
+import { PageActions } from '@/components/ui/PageActions'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { date, money, moneyCompact, quantity } from '@/utils/format'
@@ -185,7 +185,6 @@ function OwnerDashboard() {
 }
 
 function AdminDashboard() {
-  const navigate = useNavigate()
   const q = useQuery({ queryKey: ['dashboard', 'admin'], queryFn: () => api.get<Dashboard>('/api/v1/dashboard/admin'), refetchInterval: 60_000 })
   const k = q.data?.kpis
   const count = (n: number) => String(Math.round(n))
@@ -195,13 +194,15 @@ function AdminDashboard() {
         title="Operations"
         subtitle="Today's work at a glance"
         actions={
-          <>
-            <Button variant="secondary" icon={<UserPlus size={16} />} onClick={() => navigate('/app/customers/new')}>Add customer</Button>
-            <Button variant="secondary" icon={<Plus size={16} />} onClick={() => navigate('/app/products/new')}>Add product</Button>
-            <Button variant="secondary" icon={<Truck size={16} />} onClick={() => navigate('/app/purchases/new')}>Add purchase</Button>
-            <Button variant="secondary" icon={<Wallet size={16} />} onClick={() => navigate('/app/payments?record=1')}>Record payment</Button>
-            <Button icon={<Receipt size={16} />} onClick={() => navigate('/app/invoices/new')}>Create invoice</Button>
-          </>
+          <PageActions
+            primary={{ key: 'invoice', label: 'Create invoice', icon: <Receipt size={16} />, to: '/app/invoices/new' }}
+            actions={[
+              { key: 'customer', label: 'Add customer', icon: <UserPlus size={16} />, to: '/app/customers/new' },
+              { key: 'product', label: 'Add product', icon: <Plus size={16} />, to: '/app/products/new' },
+              { key: 'purchase', label: 'Add purchase', icon: <Truck size={16} />, to: '/app/purchases/new' },
+              { key: 'payment', label: 'Record payment', icon: <Wallet size={16} />, to: '/app/payments?record=1' },
+            ]}
+          />
         }
       />
       {q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (

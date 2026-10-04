@@ -37,7 +37,13 @@ import com.shopflow.orders.OrderRepositories.OrderRepository;
 import com.shopflow.payments.PaymentMethod;
 import com.shopflow.payments.PaymentService;
 import com.shopflow.products.PricingService;
+import com.shopflow.inventory.StockTrace;
+import com.shopflow.inventory.TrackingService;
 import com.shopflow.products.Product;
+import com.shopflow.products.ProductOptionsService;
+import com.shopflow.products.SchemeService;
+import com.shopflow.tenancy.ModuleCode;
+import com.shopflow.tenancy.TenantModules;
 import com.shopflow.products.ProductService;
 import com.shopflow.security.CurrentUser;
 import com.shopflow.security.Permissions;
@@ -93,13 +99,25 @@ public class InvoiceService {
     private final JdbcTemplate jdbc;
     private final NotificationService notifications;
     private final AuditService audit;
+    private final ProductOptionsService options;
+    private final SchemeService schemes;
+    private final TrackingService tracking;
+    private final TenantModules modules;
+
+    private final com.shopflow.saas.PlanLimits limits;
 
     public InvoiceService(InvoiceRepository invoices, OrderRepository orders, CustomerService customers, CreditService credit,
                           ProductService products, PricingService pricing, InventoryService inventory,
                           TaxCalculator calculator, CustomerLedgerService ledger, PaymentService payments,
                           CreditNoteService creditNotes, DocumentSequenceService sequences, IdempotencyService idempotency,
                           BusinessSettingsService settings, BusinessContext businessContext, EInvoiceProvider einvoice,
-                          AppProperties properties, JdbcTemplate jdbc, NotificationService notifications, AuditService audit) {
+                          AppProperties properties, JdbcTemplate jdbc, NotificationService notifications, AuditService audit,
+                          ProductOptionsService options, SchemeService schemes, TrackingService tracking, TenantModules modules, com.shopflow.saas.PlanLimits limits) {
+        this.limits = limits;
+        this.options = options;
+        this.schemes = schemes;
+        this.tracking = tracking;
+        this.modules = modules;
         this.invoices = invoices;
         this.orders = orders;
         this.customers = customers;
@@ -184,8 +202,11 @@ public class InvoiceService {
 
     @Transactional
     public Invoice create(CreateInvoiceRequest r) {
-        Invoice invoice = r.orderId() != null ? draftFromOrder(r) : draftManual(r);
+        Invoice invoice = r.orderId() != null ? draftFromOrder(r) : draftManual(r, true);
+        applyCharges(invoice, r.charges());
         applyHeader(invoice, r);
+        applyProject(invoice, r.projectId() != null ? r.projectId()
+                : r.orderId() != null ? orders.findById(r.orderId()).map(Order::getProjectId).orElse(null) : null);
         invoices.saveAndFlush(invoice);
         audit.record(AuditAction.INVOICE_CREATED, "INVOICE", invoice.getId(), null,
                 Map.of("source", invoice.getSource(), "customerId", invoice.getCustomerId(), "grandTotal", invoice.getGrandTotal()));
@@ -225,6 +246,10 @@ public class InvoiceService {
             item.setSku(oi.getSku());
             item.setHsnCode(oi.getHsnCode());
             item.setUnit(oi.getUnit());
+            item.setUnitFactor(oi.getUnitFactor());
+            item.setFreeItem(oi.isFreeItem());
+            item.setSchemeId(oi.getSchemeId());
+            item.setSchemeName(oi.getSchemeName());
             item.setQuantity(billable);
             item.setRate(oi.getRate());
             item.setDiscountPercent(oi.getDiscountPercent());
@@ -248,7 +273,41 @@ public class InvoiceService {
         return base.subtract(oi.getInvoicedQuantity()).max(BigDecimal.ZERO);
     }
 
-    private Invoice draftManual(CreateInvoiceRequest r) {
+    /**
+     * An invoice for a delivery challan (§0B.9): the challan's lines at its rates, no schemes, and no stock movement on
+     * generation (the stock already left with the challan). Batch and serial details are copied from the challan.
+     */
+    @Transactional
+    public Invoice createFromChallan(UUID challanId, CreateInvoiceRequest r, List<String[]> details) {
+        Invoice invoice = draftManual(r, false);
+        invoice.setSource(Invoice.Source.CHALLAN);
+        invoice.setDeliveryChallanId(challanId);
+        for (int i = 0; i < invoice.getItems().size() && i < details.size(); i++) {
+            invoice.getItems().get(i).setBatchDetails(details.get(i)[0]);
+            invoice.getItems().get(i).setSerialNumbers(details.get(i)[1]);
+        }
+        applyHeader(invoice, r);
+        applyProject(invoice, r.projectId());
+        invoices.saveAndFlush(invoice);
+        audit.record(AuditAction.INVOICE_CREATED, "INVOICE", invoice.getId(), null,
+                Map.of("source", "CHALLAN", "challanId", challanId, "grandTotal", invoice.getGrandTotal()));
+        return generate(invoice.getId(), null);
+    }
+
+    /** Project / site of a contractor customer; it must belong to the invoice's customer. */
+    private void applyProject(Invoice invoice, UUID projectId) {
+        if (projectId == null) {
+            return;
+        }
+        modules.require(ModuleCode.PROJECT_ACCOUNTS);
+        List<UUID> owner = jdbc.queryForList("SELECT customer_id FROM projects WHERE id = ?", UUID.class, projectId);
+        if (owner.isEmpty() || !owner.getFirst().equals(invoice.getCustomerId())) {
+            throw BusinessException.validation("projectId", "The project does not belong to this customer");
+        }
+        invoice.setProjectId(projectId);
+    }
+
+    private Invoice draftManual(CreateInvoiceRequest r, boolean applySchemes) {
         if (r.customerId() == null || r.items() == null || r.items().isEmpty() || r.paymentType() == null) {
             throw BusinessException.validation("customerId", "customerId, paymentType and items are required for an admin-created invoice");
         }
@@ -260,7 +319,9 @@ public class InvoiceService {
         Map<UUID, Product> productMap = products.getAll(r.items().stream().map(InvoiceLineRequest::productId).toList())
                 .stream().collect(Collectors.toMap(Product::getId, Function.identity()));
         List<TaxCalculator.Line> calcLines = new ArrayList<>();
-        int line = 1;
+        List<ProductOptionsService.ResolvedUnit> units = new ArrayList<>();
+        List<BigDecimal> rates = new ArrayList<>();
+        List<SchemeService.Line> schemeLines = new ArrayList<>();
         for (InvoiceLineRequest l : r.items()) {
             Product product = productMap.get(l.productId());
             if (product == null) {
@@ -269,24 +330,119 @@ public class InvoiceService {
             if (!product.isActive()) {
                 throw new BusinessException(ErrorCode.PRODUCT_INACTIVE, product.getName() + " is inactive");
             }
-            BigDecimal rate = l.rate() != null ? Money.of(l.rate()) : pricing.priceFor(product, customer.getId());
-            InvoiceItem item = new InvoiceItem();
-            item.setInvoice(invoice);
-            item.setLineNumber(line++);
-            item.setProductId(product.getId());
-            item.setProductName(product.getName());
-            item.setDescription(Validation.trim(l.description()));
-            item.setSku(product.getSku());
-            item.setHsnCode(product.getHsnCode());
-            item.setUnit(product.getUnit().name());
-            item.setQuantity(Money.qty(l.quantity()));
-            item.setRate(rate);
-            item.setTaxRate(product.getGstRate());
+            options.requireSellable(product);
+            ProductOptionsService.ResolvedUnit unit = options.resolve(product, l.unit());
+            BigDecimal baseQuantity = unit.toBase(l.quantity());
+            options.validateQuantity(product, baseQuantity);
+            if (product.isTrackSerials() && l.serialNumbers() != null && !l.serialNumbers().isEmpty()
+                    && l.serialNumbers().stream().filter(s -> s != null && !s.isBlank()).count() != baseQuantity.longValue()) {
+                throw BusinessException.validation("serialNumbers", "Choose exactly " + baseQuantity.stripTrailingZeros().toPlainString()
+                        + " serial number(s) for " + product.getName());
+            }
+            // The rate is per chosen unit: the base price × the unit factor unless entered.
+            BigDecimal rate = l.rate() != null ? Money.of(l.rate()) : Money.of(pricing.priceFor(product, customer.getId()).multiply(unit.factor()));
+            units.add(unit);
+            rates.add(rate);
+            schemeLines.add(new SchemeService.Line(product.getId(), product.getCategoryId(), baseQuantity, Money.of(rate.multiply(l.quantity()))));
+        }
+        List<SchemeService.Outcome> outcomes = applySchemes ? schemes.evaluate(schemeLines)
+                : schemeLines.stream().map(x -> SchemeService.Outcome.NONE).toList();
+        int line = 1;
+        for (int idx = 0; idx < r.items().size(); idx++) {
+            InvoiceLineRequest l = r.items().get(idx);
+            Product product = productMap.get(l.productId());
+            SchemeService.Outcome scheme = outcomes.get(idx);
+            boolean explicitDiscount = l.discountPercent() != null || l.discountAmount() != null;
+            BigDecimal discountPercent = explicitDiscount ? l.discountPercent() : scheme.hasDiscount() ? scheme.discountPercent() : null;
+            InvoiceItem item = newManualItem(invoice, line++, product, units.get(idx).unit(), units.get(idx).factor(), Money.qty(l.quantity()),
+                    rates.get(idx), Validation.trim(l.description()));
+            if (!explicitDiscount && scheme.hasDiscount()) {
+                item.setSchemeId(scheme.discountSchemeId());
+                item.setSchemeName(scheme.discountSchemeName());
+            }
+            if (product.isTrackSerials() && l.serialNumbers() != null) {
+                item.setSerialNumbers(String.join(",", l.serialNumbers().stream().filter(s -> s != null && !s.isBlank())
+                        .map(s -> s.trim().toUpperCase()).toList()));
+            }
+            if (product.isTrackBatches() && l.batchNumber() != null && !l.batchNumber().isBlank()) {
+                item.setBatchDetails("BATCH:" + l.batchNumber().trim().toUpperCase());
+            }
             invoice.getItems().add(item);
-            calcLines.add(new TaxCalculator.Line(l.quantity(), rate, l.discountPercent(), l.discountAmount(), product.getGstRate(), product.getHsnCode()));
+            calcLines.add(new TaxCalculator.Line(l.quantity(), rates.get(idx), discountPercent, explicitDiscount ? l.discountAmount() : null,
+                    product.getGstRate(), product.getHsnCode()));
+            if (scheme.hasFreeGoods()) {
+                // Free goods: a separate zero-value line in the base unit; the stock still leaves.
+                InvoiceItem free = newManualItem(invoice, line++, product, product.getUnit().name(), BigDecimal.ONE, scheme.freeQuantity(),
+                        BigDecimal.ZERO, "Free under " + scheme.freeSchemeName());
+                free.setFreeItem(true);
+                free.setSchemeId(scheme.freeSchemeId());
+                free.setSchemeName(scheme.freeSchemeName());
+                invoice.getItems().add(free);
+                calcLines.add(new TaxCalculator.Line(scheme.freeQuantity(), BigDecimal.ZERO, null, null, product.getGstRate(), product.getHsnCode()));
+            }
         }
         applyCalculation(invoice, calcLines);
         return invoice;
+    }
+
+    /** Agent / broker commission on the taxable value (COMMISSION module), fixed when the invoice is generated. */
+    private void applyCommission(Invoice invoice, Customer customer) {
+        if (customer.getAgentId() == null || !modules.isEnabled(ModuleCode.COMMISSION)) {
+            return;
+        }
+        List<BigDecimal> percent = jdbc.queryForList("SELECT commission_percent FROM agents WHERE id = ? AND active", BigDecimal.class, customer.getAgentId());
+        if (percent.isEmpty() || percent.getFirst().signum() == 0) {
+            return;
+        }
+        invoice.setAgentId(customer.getAgentId());
+        invoice.setCommissionPercent(percent.getFirst());
+        invoice.setCommissionAmount(Money.of(invoice.getTaxableTotal().multiply(percent.getFirst()).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)));
+    }
+
+    private static InvoiceItem newManualItem(Invoice invoice, int lineNumber, Product product, String unit, BigDecimal factor,
+                                             BigDecimal quantity, BigDecimal rate, String description) {
+        InvoiceItem item = new InvoiceItem();
+        item.setInvoice(invoice);
+        item.setLineNumber(lineNumber);
+        item.setProductId(product.getId());
+        item.setProductName(product.getName());
+        item.setDescription(description);
+        item.setSku(product.getSku());
+        item.setHsnCode(product.getHsnCode());
+        item.setUnit(unit);
+        item.setUnitFactor(factor);
+        item.setQuantity(quantity);
+        item.setRate(rate);
+        item.setTaxRate(product.getGstRate());
+        return item;
+    }
+
+    /** Invoice-level charges (transport, loading…) with their own GST; needs the CHARGES module. */
+    private void applyCharges(Invoice invoice, List<InvoiceDtos.ChargeRequest> requested) {
+        invoice.getCharges().clear();
+        if (requested == null || requested.isEmpty()) {
+            return;
+        }
+        modules.require(ModuleCode.CHARGES);
+        int line = 1;
+        for (InvoiceDtos.ChargeRequest c : requested) {
+            BigDecimal taxRate = c.taxRate() == null ? BigDecimal.ZERO : c.taxRate();
+            if (taxRate.signum() > 0 && !settings.taxSettings().isAllowedRate(taxRate)) {
+                throw BusinessException.validation("charges", "GST rate must be one of " + settings.taxSettings().getAllowedGstRates());
+            }
+            InvoiceCharge charge = new InvoiceCharge();
+            charge.setInvoice(invoice);
+            charge.setLineNumber(line++);
+            charge.setChargeType(c.type());
+            charge.setDescription(Validation.trim(c.description()));
+            charge.setSacCode(c.type().sac());
+            charge.setAmount(Money.of(c.amount()));
+            charge.setTaxRate(taxRate);
+            invoice.getCharges().add(charge);
+        }
+        // Recalculate the totals with the charges included.
+        applyCalculation(invoice, invoice.getItems().stream().map(i -> new TaxCalculator.Line(i.getQuantity(), i.getRate(),
+                i.getDiscountPercent(), i.getDiscountAmount(), i.getTaxRate(), i.getHsnCode())).toList());
     }
 
     private Invoice newInvoice(UUID customerId, Invoice.Source source, PaymentMethod paymentType, LocalDate date) {
@@ -327,13 +483,27 @@ public class InvoiceService {
         invoice.setNotes(Validation.trim(r.notes()));
     }
 
-    private void applyCalculation(Invoice invoice, List<TaxCalculator.Line> calcLines) {
+    private void applyCalculation(Invoice invoice, List<TaxCalculator.Line> itemLines) {
+        List<TaxCalculator.Line> calcLines = new ArrayList<>(itemLines);
+        invoice.getCharges().forEach(c -> calcLines.add(new TaxCalculator.Line(BigDecimal.ONE, c.getAmount(), null, null,
+                c.getTaxRate(), c.getSacCode())));
         TaxCalculator.Result calc;
         try {
             calc = calculator.calculate(calcLines, invoice.isInterState(), settings.taxSettings().isRoundOffEnabled());
         } catch (IllegalArgumentException e) {
             throw BusinessException.validation("items", e.getMessage());
         }
+        BigDecimal chargesTotal = BigDecimal.ZERO;
+        for (int c = 0; c < invoice.getCharges().size(); c++) {
+            InvoiceCharge charge = invoice.getCharges().get(c);
+            TaxCalculator.LineResult lr = calc.lines().get(invoice.getItems().size() + c);
+            charge.setCgstAmount(lr.cgst());
+            charge.setSgstAmount(lr.sgst());
+            charge.setIgstAmount(lr.igst());
+            charge.setTotal(lr.total());
+            chargesTotal = chargesTotal.add(lr.total());
+        }
+        invoice.setChargesTotal(Money.of(chargesTotal));
         for (int i = 0; i < invoice.getItems().size(); i++) {
             InvoiceItem item = invoice.getItems().get(i);
             TaxCalculator.LineResult lr = calc.lines().get(i);
@@ -385,6 +555,7 @@ public class InvoiceService {
             }
             return invoice;
         }
+        limits.check(com.shopflow.saas.PlanLimits.Limit.INVOICES_PER_MONTH);
         Customer customer = customers.get(invoice.getCustomerId());
         Order order = null;
         if (invoice.getOrderId() != null) {
@@ -422,7 +593,8 @@ public class InvoiceService {
                 i.getDiscountPercent(), i.getDiscountAmount(), i.getTaxRate(), i.getHsnCode())).toList());
         Map<UUID, Product> productMap = products.getAll(invoice.getItems().stream().map(InvoiceItem::getProductId).toList())
                 .stream().collect(Collectors.toMap(Product::getId, Function.identity()));
-        invoice.getItems().forEach(i -> i.setUnitCost(Money.of(productMap.get(i.getProductId()).getPurchasePrice())));
+        // Cost per invoiced unit (base cost × unit factor), for profit reports.
+        invoice.getItems().forEach(i -> i.setUnitCost(Money.of(productMap.get(i.getProductId()).getPurchasePrice().multiply(i.getUnitFactor()))));
         invoice.setAmountInWords(AmountInWords.inr(invoice.getGrandTotal()));
         invoice.setTaxAmountInWords(AmountInWords.inr(invoice.totalTax()));
         invoice.setDueDate(invoice.getPaymentType() == PaymentMethod.CREDIT
@@ -431,18 +603,36 @@ public class InvoiceService {
         invoice.setGeneratedAt(Instant.now());
         invoice.setGeneratedBy(CurrentUser.id());
         invoice.setStatus(InvoiceStatus.GENERATED);
+        applyCommission(invoice, customer);
 
         if (order != null) {
             Map<UUID, OrderItem> items = order.getItems().stream().collect(Collectors.toMap(OrderItem::getId, Function.identity()));
             invoice.getItems().forEach(i -> {
                 OrderItem oi = items.get(i.getOrderItemId());
                 oi.setInvoicedQuantity(oi.getInvoicedQuantity().add(i.getQuantity()));
+                Product product = productMap.get(i.getProductId());
+                if (product.isTrackBatches() || product.isTrackSerials()) {
+                    // Stock left at delivery under the order: show what was used.
+                    StockTrace.Result used = tracking.describe("ORDER", invoice.getOrderId(), i.getProductId());
+                    i.setBatchDetails(used.batchDetails());
+                    i.setSerialNumbers(used.serials().isEmpty() ? null : String.join(",", used.serials()));
+                }
             });
-        } else {
-            // Admin-created invoices are counter/direct sales: stock leaves now.
-            invoice.getItems().stream().sorted(Comparator.comparing(InvoiceItem::getProductId)).forEach(i ->
-                    inventory.post(i.getProductId(), MovementType.SALE_OUT, i.getQuantity(), i.getUnitCost(), "INVOICE",
-                            invoice.getId(), invoice.getInvoiceNumber(), "Sale", null));
+            tracking.linkOrderSerialsToInvoice(invoice.getOrderId(), invoice.getId());
+        } else if (invoice.getSource() == Invoice.Source.MANUAL) {
+            // Admin-created invoices are counter/direct sales: stock leaves now (base units, batches FEFO, chosen serials).
+            // (A challan invoice does not move stock: the goods already left with the challan.)
+            invoice.getItems().stream().sorted(Comparator.comparing(InvoiceItem::getProductId)).forEach(i -> {
+                Product product = productMap.get(i.getProductId());
+                String batch = i.getBatchDetails() != null && i.getBatchDetails().startsWith("BATCH:") ? i.getBatchDetails().substring(6) : null;
+                List<String> serials = i.getSerialNumbers() == null || i.getSerialNumbers().isBlank() ? null : List.of(i.getSerialNumbers().split(","));
+                InventoryService.TracedMovement moved = inventory.postTraced(i.getProductId(), MovementType.SALE_OUT,
+                        Money.qty(i.getQuantity().multiply(i.getUnitFactor())), Money.of(product.getPurchasePrice()), "INVOICE",
+                        invoice.getId(), invoice.getInvoiceNumber(), "Sale", null,
+                        new StockTrace(batch, null, null, serials, null, null, customer.getId()));
+                i.setBatchDetails(moved.trace().batchDetails());
+                i.setSerialNumbers(moved.trace().serials().isEmpty() ? null : String.join(",", moved.trace().serials()));
+            });
         }
         invoices.saveAndFlush(invoice);
         ledger.debit(customer.getId(), EntryType.INVOICE, "INVOICE", invoice.getId(), invoice.getInvoiceNumber(),
@@ -575,13 +765,19 @@ public class InvoiceService {
                     OrderItem oi = items.get(i.getOrderItemId());
                     oi.setInvoicedQuantity(oi.getInvoicedQuantity().subtract(i.getQuantity()).max(BigDecimal.ZERO));
                 });
+            } else if (invoice.getSource() == Invoice.Source.CHALLAN) {
+                // The goods stay with the customer under the challan; it can be invoiced again.
+                jdbc.update("UPDATE delivery_challans SET status = 'ISSUED', invoice_id = NULL, updated_at = now(), version = version + 1 WHERE id = ?",
+                        invoice.getDeliveryChallanId());
             } else {
                 BigDecimal zero = BigDecimal.ZERO;
                 invoice.getItems().stream().sorted(Comparator.comparing(InvoiceItem::getProductId)).forEach(i -> {
                     BigDecimal back = i.getQuantity().subtract(creditNotes.creditedQuantity(invoice.getId(), i.getId())).max(zero);
                     if (back.signum() > 0) {
-                        inventory.post(i.getProductId(), MovementType.ADJUSTMENT_IN, back, i.getUnitCost(), "INVOICE",
-                                invoice.getId(), invoice.getInvoiceNumber(), "Invoice cancelled", null);
+                        inventory.postTraced(i.getProductId(), MovementType.ADJUSTMENT_IN, Money.qty(back.multiply(i.getUnitFactor())),
+                                i.getUnitCost().divide(i.getUnitFactor(), 2, java.math.RoundingMode.HALF_UP), "INVOICE",
+                                invoice.getId(), invoice.getInvoiceNumber(), "Invoice cancelled", null,
+                                StockTrace.reversing("INVOICE", invoice.getId()));
                     }
                 });
             }
@@ -595,6 +791,25 @@ public class InvoiceService {
         audit.record(AuditAction.INVOICE_CANCELLED, "INVOICE", invoice.getId(), Map.of("status", before),
                 Map.of("status", InvoiceStatus.CANCELLED, "reason", reason));
         return invoice;
+    }
+
+    /** Trade details for the invoice screen; commission is shown to staff only. Null when the invoice has none. */
+    public InvoiceDtos.InvoiceTradeInfo tradeInfo(Invoice i, boolean staff) {
+        if (i.getProjectId() == null && i.getAgentId() == null && i.getEwayBillNumber() == null && i.getDeliveryChallanId() == null) {
+            return null;
+        }
+        String project = i.getProjectId() == null ? null
+                : jdbc.queryForList("SELECT name FROM projects WHERE id = ?", String.class, i.getProjectId()).stream().findFirst().orElse(null);
+        boolean showAgent = staff && i.getAgentId() != null;
+        String agent = showAgent
+                ? jdbc.queryForList("SELECT name FROM agents WHERE id = ?", String.class, i.getAgentId()).stream().findFirst().orElse(null) : null;
+        String challan = i.getDeliveryChallanId() == null ? null
+                : jdbc.queryForList("SELECT challan_number FROM delivery_challans WHERE id = ?", String.class, i.getDeliveryChallanId())
+                .stream().findFirst().orElse(null);
+        return new InvoiceDtos.InvoiceTradeInfo(i.getProjectId(), project, showAgent ? i.getAgentId() : null, agent,
+                showAgent ? i.getCommissionPercent() : null, showAgent ? i.getCommissionAmount() : null,
+                showAgent ? i.getCommissionPaidAt() : null, i.getEwayBillNumber(), i.getEwayBillDate(), i.getEwayValidUntil(),
+                i.getEwayDistanceKm(), i.isEwayTestOnly(), i.getDeliveryChallanId(), challan);
     }
 
     private static String joinNonBlank(String separator, String... parts) {

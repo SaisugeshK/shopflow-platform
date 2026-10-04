@@ -40,7 +40,10 @@ import com.shopflow.payments.Payment;
 import com.shopflow.payments.PaymentMethod;
 import com.shopflow.payments.PaymentService;
 import com.shopflow.products.PricingService;
+import com.shopflow.inventory.StockTrace;
 import com.shopflow.products.Product;
+import com.shopflow.products.ProductOptionsService;
+import com.shopflow.products.SchemeService;
 import com.shopflow.products.ProductService;
 import com.shopflow.security.CurrentUser;
 import jakarta.persistence.criteria.Predicate;
@@ -92,13 +95,17 @@ public class OrderService {
     private final BusinessSettingsService settings;
     private final NotificationService notifications;
     private final AuditService audit;
+    private final ProductOptionsService options;
+    private final SchemeService schemes;
 
     public OrderService(OrderRepository orders, OrderStatusHistoryRepository history, DeliveryRepository deliveries,
                         CartService cartService, CustomerService customers, CreditService credit, ProductService products,
                         PricingService pricing, InventoryService inventory, TaxCalculator calculator,
                         PaymentService payments, InvoiceService invoices, CreditNoteService creditNotes,
                         DocumentSequenceService sequences, IdempotencyService idempotency, BusinessContext businessContext,
-                        BusinessSettingsService settings, NotificationService notifications, AuditService audit) {
+                        BusinessSettingsService settings, NotificationService notifications, AuditService audit, ProductOptionsService options, SchemeService schemes) {
+        this.options = options;
+        this.schemes = schemes;
         this.orders = orders;
         this.history = history;
         this.deliveries = deliveries;
@@ -179,13 +186,26 @@ public class OrderService {
     /** Returns the created order id (idempotent per Idempotency-Key). */
     @Transactional
     public UUID create(CreateOrderRequest r, String idempotencyKey) {
-        return idempotency.execute("order.create", CurrentUser.id(), idempotencyKey, () -> doCreate(r).getId());
+        return idempotency.execute("order.create", CurrentUser.id(), idempotencyKey, () -> doCreate(r, null).getId());
     }
 
-    private Order doCreate(CreateOrderRequest r) {
-        boolean byCustomer = CurrentUser.isCustomer();
+    /**
+     * An order from an accepted quotation (§0B.9): the quoted rates and discounts are used as they are (no schemes).
+     * Called by the server only; the request's customer is trusted, whoever is signed in.
+     */
+    @Transactional
+    public Order createFromQuotation(CreateOrderRequest r, UUID customerId) {
+        return doCreate(r, customerId);
+    }
+
+    private Order doCreate(CreateOrderRequest r, UUID quotedFor) {
+        boolean quoted = quotedFor != null;
+        boolean byCustomer = !quoted && CurrentUser.isCustomer();
         Customer customer;
-        if (byCustomer) {
+        if (quoted) {
+            customer = customers.get(quotedFor);
+            CustomerService.requireApproved(customer);
+        } else if (byCustomer) {
             customer = customers.currentApprovedCustomer();
         } else {
             if (r.customerId() == null) {
@@ -203,30 +223,37 @@ public class OrderService {
                 .orElseThrow(() -> BusinessException.validation("addressId", "Add a delivery address before placing an order"));
 
         boolean fromCart = r.items() == null || r.items().isEmpty();
-        Map<UUID, BigDecimal> requested = new LinkedHashMap<>();
+        // One line per product and unit (e.g. 2 CASE and 5 PCS of the same product are separate lines).
+        Map<LineKey, BigDecimal> requested = new LinkedHashMap<>();
         if (fromCart) {
             if (!byCustomer) {
                 throw BusinessException.validation("items", "Items are required");
             }
-            cartService.cart(customer.getId()).getItems().forEach(i -> requested.merge(i.getProductId(), i.getQuantity(), BigDecimal::add));
+            cartService.cart(customer.getId()).getItems().forEach(i -> requested.merge(new LineKey(i.getProductId(), i.getUnit()), i.getQuantity(), BigDecimal::add));
         } else {
             for (OrderLineRequest l : r.items()) {
-                requested.merge(l.productId(), Money.qty(l.quantity()), BigDecimal::add);
+                requested.merge(new LineKey(l.productId(), l.unit() == null || l.unit().isBlank() ? null : l.unit().trim().toUpperCase()),
+                        Money.qty(l.quantity()), BigDecimal::add);
             }
         }
         if (requested.isEmpty()) {
             throw new BusinessException(ErrorCode.CART_EMPTY, "Your cart is empty");
         }
-        Map<UUID, Product> productMap = products.getAll(requested.keySet()).stream()
+        Map<UUID, Product> productMap = products.getAll(requested.keySet().stream().map(LineKey::productId).distinct().toList()).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
-        for (UUID productId : requested.keySet()) {
-            Product p = productMap.get(productId);
+        Map<LineKey, ProductOptionsService.ResolvedUnit> unitMap = new java.util.HashMap<>();
+        for (Map.Entry<LineKey, BigDecimal> e : requested.entrySet()) {
+            Product p = productMap.get(e.getKey().productId());
             if (p == null) {
-                throw BusinessException.notFound(ErrorCode.PRODUCT_NOT_FOUND, "Product " + productId);
+                throw BusinessException.notFound(ErrorCode.PRODUCT_NOT_FOUND, "Product " + e.getKey().productId());
             }
             if (!p.isActive()) {
                 throw new BusinessException(ErrorCode.PRODUCT_INACTIVE, p.getName() + " is no longer available");
             }
+            options.requireSellable(p);
+            ProductOptionsService.ResolvedUnit unit = options.resolve(p, e.getKey().unit());
+            options.validateQuantity(p, unit.toBase(e.getValue()));
+            unitMap.put(e.getKey(), unit);
         }
 
         boolean interState = TaxCalculator.isInterState(settings.business().getStateCode(), address.getStateCode());
@@ -247,24 +274,49 @@ public class OrderService {
         order.setDeliveryPincode(address.getPincode());
         order.setContactMobile(customer.getMobileNumber());
         order.setOrderNote(Validation.trim(r.orderNote()));
+        order.setProjectId(r.projectId());
         order.setInterState(interState);
         order.setPlacedAt(Instant.now());
         order.setPlacedBy(CurrentUser.id());
         int line = 1;
-        for (Map.Entry<UUID, BigDecimal> e : requested.entrySet()) {
-            Product p = productMap.get(e.getKey());
-            OrderItem item = new OrderItem();
-            item.setOrder(order);
-            item.setLineNumber(line++);
-            item.setProductId(p.getId());
-            item.setProductName(p.getName());
-            item.setSku(p.getSku());
-            item.setHsnCode(p.getHsnCode());
-            item.setUnit(p.getUnit().name());
-            item.setOrderedQuantity(e.getValue());
-            item.setRate(pricing.priceFor(p, customer.getId()));
-            item.setTaxRate(p.getGstRate());
+        List<SchemeService.Line> schemeLines = new ArrayList<>();
+        List<OrderItem> paid = new ArrayList<>();
+        Map<LineKey, OrderLineRequest> quotedLines = new java.util.HashMap<>();
+        if (quoted && r.items() != null) {
+            r.items().forEach(l -> quotedLines.put(new LineKey(l.productId(), l.unit() == null || l.unit().isBlank() ? null : l.unit().trim().toUpperCase()), l));
+        }
+        for (Map.Entry<LineKey, BigDecimal> e : requested.entrySet()) {
+            Product p = productMap.get(e.getKey().productId());
+            ProductOptionsService.ResolvedUnit unit = unitMap.get(e.getKey());
+            OrderLineRequest q = quotedLines.get(e.getKey());
+            BigDecimal rate = q != null && q.rate() != null ? Money.of(q.rate()) : Money.of(pricing.priceFor(p, customer.getId()).multiply(unit.factor()));
+            OrderItem item = newItem(order, line++, p, unit.unit(), unit.factor(), e.getValue(), rate);
+            if (q != null && q.discountPercent() != null) {
+                item.setDiscountPercent(q.discountPercent());
+            }
             order.getItems().add(item);
+            paid.add(item);
+            schemeLines.add(new SchemeService.Line(p.getId(), p.getCategoryId(), unit.toBase(e.getValue()), Money.of(item.getRate().multiply(e.getValue()))));
+        }
+        // Schemes (§0B.7): slab discounts on the line, buy-X-get-Y as a separate free line in the base unit.
+        // A quotation already carries the agreed prices, so no scheme applies on top of it.
+        List<SchemeService.Outcome> outcomes = quoted ? schemeLines.stream().map(x -> SchemeService.Outcome.NONE).toList() : schemes.evaluate(schemeLines);
+        for (int idx = 0; idx < paid.size(); idx++) {
+            OrderItem item = paid.get(idx);
+            SchemeService.Outcome o = outcomes.get(idx);
+            if (o.hasDiscount()) {
+                item.setDiscountPercent(o.discountPercent());
+                item.setSchemeId(o.discountSchemeId());
+                item.setSchemeName(o.discountSchemeName());
+            }
+            if (o.hasFreeGoods()) {
+                Product p = productMap.get(item.getProductId());
+                OrderItem free = newItem(order, line++, p, p.getUnit().name(), java.math.BigDecimal.ONE, o.freeQuantity(), Money.ZERO);
+                free.setFreeItem(true);
+                free.setSchemeId(o.freeSchemeId());
+                free.setSchemeName(o.freeSchemeName());
+                order.getItems().add(free);
+            }
         }
         recalculate(order);
 
@@ -281,7 +333,7 @@ public class OrderService {
 
         // Reserve in product-id order so concurrent orders lock rows consistently and cannot deadlock.
         order.getItems().stream().sorted(Comparator.comparing(OrderItem::getProductId)).forEach(item -> {
-            inventory.reserve(item.getProductId(), item.getOrderedQuantity());
+            inventory.reserve(item.getProductId(), item.base(item.getOrderedQuantity()));
             item.setReservedQuantity(item.getOrderedQuantity());
         });
         orders.saveAndFlush(order);
@@ -308,6 +360,26 @@ public class OrderService {
     }
 
     /** Re-prices lines for their effective quantity (accepted − cancelled once accepted). */
+    private record LineKey(UUID productId, String unit) {
+    }
+
+    private static OrderItem newItem(Order order, int lineNumber, Product p, String unit, BigDecimal factor, BigDecimal quantity,
+                                     BigDecimal rate) {
+        OrderItem item = new OrderItem();
+        item.setOrder(order);
+        item.setLineNumber(lineNumber);
+        item.setProductId(p.getId());
+        item.setProductName(p.getName());
+        item.setSku(p.getSku());
+        item.setHsnCode(p.getHsnCode());
+        item.setUnit(unit);
+        item.setUnitFactor(factor);
+        item.setOrderedQuantity(quantity);
+        item.setRate(rate);
+        item.setTaxRate(p.getGstRate());
+        return item;
+    }
+
     private void recalculate(Order order) {
         List<TaxCalculator.Line> lines = new ArrayList<>();
         List<OrderItem> included = new ArrayList<>();
@@ -376,7 +448,7 @@ public class OrderService {
             item.setAcceptedQuantity(qty);
             BigDecimal release = item.getReservedQuantity().subtract(qty);
             if (release.signum() > 0) {
-                inventory.release(item.getProductId(), release);
+                inventory.release(item.getProductId(), item.base(release));
                 item.setReservedQuantity(qty);
             }
             totalAccepted = totalAccepted.add(qty);
@@ -524,8 +596,8 @@ public class OrderService {
                         + " of " + item.getProductName());
             }
             if (qty.signum() > 0) {
-                inventory.post(item.getProductId(), MovementType.SALE_OUT, qty, null, "ORDER", order.getId(),
-                        order.getOrderNumber(), "Delivered", qty);
+                inventory.postTraced(item.getProductId(), MovementType.SALE_OUT, item.base(qty), null, "ORDER", order.getId(),
+                        order.getOrderNumber(), "Delivered", item.base(qty), StockTrace.sale(null, order.getCustomerId()));
                 item.setReservedQuantity(item.getReservedQuantity().subtract(qty).max(BigDecimal.ZERO));
                 item.setDeliveredQuantity(item.getDeliveredQuantity().add(qty));
                 delivered = delivered.add(qty);
@@ -536,7 +608,7 @@ public class OrderService {
                 shortfalls.put(item.getId(), shortfall);
             }
             if (item.getReservedQuantity().signum() > 0) {
-                inventory.release(item.getProductId(), item.getReservedQuantity());
+                inventory.release(item.getProductId(), item.base(item.getReservedQuantity()));
                 item.setReservedQuantity(BigDecimal.ZERO);
             }
         }
@@ -664,7 +736,7 @@ public class OrderService {
     private void releaseAll(Order order) {
         order.getItems().stream().sorted(Comparator.comparing(OrderItem::getProductId)).forEach(item -> {
             if (item.getReservedQuantity().signum() > 0) {
-                inventory.release(item.getProductId(), item.getReservedQuantity());
+                inventory.release(item.getProductId(), item.base(item.getReservedQuantity()));
                 item.setReservedQuantity(BigDecimal.ZERO);
             }
             BigDecimal open = effectiveQuantity(order, item).subtract(item.getDeliveredQuantity());

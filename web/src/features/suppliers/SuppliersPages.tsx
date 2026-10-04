@@ -12,6 +12,7 @@ import { STATES } from '@/features/auth/RegisterPage'
 import { useListParams } from '@/hooks/useListParams'
 import { api, ApiError } from '@/services/api'
 import type { Purchase, Supplier } from '@/services/types'
+import { PortalAccessCard } from '@/features/procurement/PortalAccessCard'
 import { useCan } from '@/stores/auth'
 import { date, money, titleCase } from '@/utils/format'
 
@@ -145,6 +146,8 @@ export function SupplierDetailPage() {
                 </QueryState>
               </Card>
             </div>
+            <div className="stack">
+            <PortalAccessCard supplierId={s.id} defaultMobile={s.mobileNumber} />
             <Card title="Details">
               <KeyValue items={[
                 ['Payable', <strong key="o">{money(s.outstanding)}</strong>], ['Contact', s.contactPerson], ['Mobile', s.mobileNumber], ['Email', s.email],
@@ -152,6 +155,7 @@ export function SupplierDetailPage() {
                 ['Address', s.address ? `${s.address.addressLine1}, ${s.address.city}, ${s.address.state} – ${s.address.pincode}` : undefined],
               ]} />
             </Card>
+            </div>
           </div>
           <SupplierDialog open={editing} supplier={s} onClose={() => setEditing(false)} onSaved={() => undefined} />
         </div>

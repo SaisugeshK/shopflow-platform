@@ -14,7 +14,9 @@ import com.shopflow.orders.OrderDtos.CartResponse;
 import com.shopflow.orders.OrderRepositories.CartRepository;
 import com.shopflow.products.PricingService;
 import com.shopflow.products.Product;
+import com.shopflow.products.ProductOptionsService;
 import com.shopflow.products.ProductService;
+import com.shopflow.products.SchemeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,9 +42,14 @@ public class CartService {
     private final TaxCalculator calculator;
     private final CustomerService customers;
     private final BusinessSettingsService settings;
+    private final ProductOptionsService options;
+    private final SchemeService schemes;
 
     public CartService(CartRepository carts, ProductService products, PricingService pricing, StockBalanceRepository balances,
-                       TaxCalculator calculator, CustomerService customers, BusinessSettingsService settings) {
+                       TaxCalculator calculator, CustomerService customers, BusinessSettingsService settings,
+                       ProductOptionsService options, SchemeService schemes) {
+        this.options = options;
+        this.schemes = schemes;
         this.carts = carts;
         this.products = products;
         this.pricing = pricing;
@@ -67,24 +74,32 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse addItem(UUID customerId, UUID productId, BigDecimal quantity) {
+    public CartResponse addItem(UUID customerId, UUID productId, BigDecimal quantity, String unit) {
         Product product = products.get(productId);
         if (!product.isActive()) {
             throw new BusinessException(ErrorCode.PRODUCT_INACTIVE, product.getName() + " is not available");
         }
+        options.requireSellable(product);
+        ProductOptionsService.ResolvedUnit resolved = options.resolve(product, unit);
+        String unitKey = resolved.base() ? null : resolved.unit();
         Cart cart = cart(customerId);
         if (cart.getItems().size() >= 200) {
             throw BusinessException.validation("items", "The cart can hold at most 200 products");
         }
-        CartItem item = cart.getItems().stream().filter(i -> i.getProductId().equals(productId)).findFirst().orElse(null);
+        CartItem item = cart.getItems().stream()
+                .filter(i -> i.getProductId().equals(productId) && java.util.Objects.equals(i.getUnit(), unitKey)).findFirst().orElse(null);
+        BigDecimal next = Money.qty(item == null ? quantity : item.getQuantity().add(quantity));
+        options.validateQuantity(product, resolved.toBase(next));
         if (item == null) {
             item = new CartItem();
             item.setCart(cart);
             item.setProductId(productId);
-            item.setQuantity(Money.qty(quantity));
+            item.setUnit(unitKey);
+            item.setUnitFactor(resolved.factor());
+            item.setQuantity(next);
             cart.getItems().add(item);
         } else {
-            item.setQuantity(Money.qty(item.getQuantity().add(quantity)));
+            item.setQuantity(next);
         }
         carts.saveAndFlush(cart);
         return toResponse(cart, customerId);
@@ -95,6 +110,7 @@ public class CartService {
         Cart cart = cart(customerId);
         CartItem item = cart.getItems().stream().filter(i -> i.getId().equals(itemId)).findFirst()
                 .orElseThrow(() -> BusinessException.notFound(ErrorCode.RESOURCE_NOT_FOUND, "Cart item"));
+        options.validateQuantity(products.get(item.getProductId()), Money.qty(quantity.multiply(item.getUnitFactor())));
         item.setQuantity(Money.qty(quantity));
         carts.saveAndFlush(cart);
         return toResponse(cart, customerId);
@@ -129,11 +145,24 @@ public class CartService {
 
         List<TaxCalculator.Line> lines = new ArrayList<>();
         List<CartItem> priced = new ArrayList<>();
+        List<BigDecimal> prices = new ArrayList<>();
+        List<SchemeService.Line> schemeLines = new ArrayList<>();
         for (CartItem i : items) {
             Product p = productMap.get(i.getProductId());
-            BigDecimal price = custom.getOrDefault(p.getId(), Money.of(p.getSellingPrice()));
-            lines.add(new TaxCalculator.Line(i.getQuantity(), price, null, null, p.getGstRate(), p.getHsnCode()));
+            BigDecimal price = Money.of(custom.getOrDefault(p.getId(), Money.of(p.getSellingPrice())).multiply(i.getUnitFactor()));
+            prices.add(price);
+            schemeLines.add(new SchemeService.Line(p.getId(), p.getCategoryId(), Money.qty(i.getQuantity().multiply(i.getUnitFactor())),
+                    Money.of(price.multiply(i.getQuantity()))));
             priced.add(i);
+        }
+        // Same scheme rules as order placement, so the preview matches the order.
+        List<SchemeService.Outcome> outcomes = schemes.evaluate(schemeLines);
+        for (int idx = 0; idx < priced.size(); idx++) {
+            CartItem i = priced.get(idx);
+            Product p = productMap.get(i.getProductId());
+            SchemeService.Outcome o = outcomes.get(idx);
+            lines.add(new TaxCalculator.Line(i.getQuantity(), prices.get(idx), o.hasDiscount() ? o.discountPercent() : null, null,
+                    p.getGstRate(), p.getHsnCode()));
         }
         TaxCalculator.Result calc = calculator.calculate(lines, interState, settings.taxSettings().isRoundOffEnabled());
         List<CartLine> result = new ArrayList<>();
@@ -147,17 +176,19 @@ public class CartService {
             String issue = null;
             if (!p.isActive()) {
                 issue = "No longer available";
-            } else if (available.compareTo(i.getQuantity()) < 0) {
+            } else if (available.compareTo(Money.qty(i.getQuantity().multiply(i.getUnitFactor()))) < 0) {
                 issue = showStock ? "Only " + available.stripTrailingZeros().toPlainString() + " available" : "Insufficient stock";
             }
             if (issue != null) {
                 ready = false;
             }
             String stockStatus = available.signum() <= 0 ? "OUT_OF_STOCK" : available.compareTo(p.getMinimumStock()) <= 0 ? "LOW_STOCK" : "IN_STOCK";
-            result.add(new CartLine(i.getId(), p.getId(), p.getSku(), p.getName(), p.getUnit().name(),
+            SchemeService.Outcome o = outcomes.get(idx);
+            String schemeName = o.hasFreeGoods() ? o.freeSchemeName() : o.hasDiscount() ? o.discountSchemeName() : null;
+            result.add(new CartLine(i.getId(), p.getId(), p.getSku(), p.getName(), i.getUnit() != null ? i.getUnit() : p.getUnit().name(),
                     products.toCatalog(List.of(p), customerId).getFirst().imageUrl(), i.getQuantity(),
                     lines.get(idx).rate(), p.getMrp(), lr.discountAmount(), p.getGstRate(), lr.taxable(), lr.tax(),
-                    lr.total(), stockStatus, issue));
+                    lr.total(), stockStatus, issue, i.getUnitFactor(), schemeName, o.hasFreeGoods() ? o.freeQuantity() : null));
         }
         return new CartResponse(cart.getId(), result, result.size(), calc.subtotal(), calc.discount(), calc.taxable(),
                 calc.cgst(), calc.sgst(), calc.igst(), calc.roundOff(), calc.grandTotal(), interState, ready);

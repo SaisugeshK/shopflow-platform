@@ -5,6 +5,7 @@ import com.shopflow.common.api.ApiResponse;
 import com.shopflow.common.api.ApiResponse.ApiError;
 import com.shopflow.common.error.ErrorCode;
 import com.shopflow.config.AppProperties;
+import com.shopflow.tenancy.TenantContext;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -70,6 +71,8 @@ public class SecurityConfig {
             // Product images / business logo: plain <img> tags can't send a bearer token, so this must be public
             // (pre-existing gap — FileController already restricts it to non-sensitive purposes; see its Javadoc).
             "/api/v1/files/public/**",
+            // Public pages: join-link landing (§0B.4), custom-domain lookup and business self-signup (§0B.14).
+            "/api/v1/public/**",
     };
 
     @Bean
@@ -99,12 +102,28 @@ public class SecurityConfig {
                     auth.requestMatchers("/actuator/**").denyAll();
                     // A registration token may only submit the registration; everything else needs an access token.
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/customer-registration").hasAuthority("REGISTRATION");
+                    // A selection token may only pick the tenant to enter.
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/select-tenant").hasAuthority("SELECTION");
                     AuthorizationManager<RequestAuthorizationContext> requireRealSession = (authentication, context) -> {
                         Authentication a = authentication.get();
                         boolean allowed = a != null && a.isAuthenticated() && !(a instanceof AnonymousAuthenticationToken)
-                                && a.getAuthorities().stream().noneMatch(g -> "REGISTRATION".equals(g.getAuthority()));
+                                && a.getAuthorities().stream().noneMatch(g -> "REGISTRATION".equals(g.getAuthority())
+                                        || "SELECTION".equals(g.getAuthority()));
+                        // Platform tokens carry no tenant: outside the console they may only use their own auth/files.
+                        if (allowed && a.getAuthorities().stream().anyMatch(g -> ("ROLE_" + Roles.SUPER_ADMIN).equals(g.getAuthority()))) {
+                            String uri = context.getRequest().getRequestURI();
+                            allowed = uri.startsWith("/api/v1/auth/") || uri.startsWith("/api/v1/files/");
+                        }
+                        // Support access is read-only: only GET/HEAD, plus signing out of the support view.
+                        if (allowed && a.getAuthorities().stream().anyMatch(g -> "SUPPORT".equals(g.getAuthority()))) {
+                            String method = context.getRequest().getMethod();
+                            allowed = "GET".equals(method) || "HEAD".equals(method)
+                                    || context.getRequest().getRequestURI().equals("/api/v1/auth/logout");
+                        }
                         return new AuthorizationDecision(allowed);
                     };
+                    // The platform console is for SUPER_ADMIN tokens only.
+                    auth.requestMatchers("/api/v1/platform/**").hasRole(Roles.SUPER_ADMIN);
                     // Every remaining API call needs a real session, same rule as before.
                     auth.requestMatchers("/api/**").access(requireRealSession);
                     // Everything else is either the bundled SPA shell/assets (single-image deployment, SpaWebConfig)
@@ -156,6 +175,7 @@ public class SecurityConfig {
         OAuth2TokenValidator<Jwt> tokenType = jwt -> {
             String type = jwt.getClaimAsString(JwtService.CLAIM_TYPE);
             return JwtService.TYPE_ACCESS.equals(type) || JwtService.TYPE_REGISTRATION.equals(type)
+                    || JwtService.TYPE_SELECTION.equals(type)
                     ? OAuth2TokenValidatorResult.success()
                     : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Unknown token type", null));
         };
@@ -165,8 +185,9 @@ public class SecurityConfig {
     }
 
     /**
-     * Access tokens map to ROLE_x plus permission authorities, after checking the session is still active.
-     * Registration tokens carry only the REGISTRATION authority.
+     * Access tokens map to ROLE_x plus permission authorities, after checking the session is still active; they also
+     * set the request's tenant (or platform access) for the row-level-security policies (§0B.3). Registration and
+     * selection tokens carry only the REGISTRATION / SELECTION authority.
      */
     @Bean
     Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter(SessionValidator sessionValidator) {
@@ -177,9 +198,27 @@ public class SecurityConfig {
                 authorities.add(new SimpleGrantedAuthority("REGISTRATION"));
                 return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
             }
+            if (JwtService.TYPE_SELECTION.equals(type)) {
+                authorities.add(new SimpleGrantedAuthority("SELECTION"));
+                return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
+            }
+            boolean platform = Boolean.TRUE.equals(jwt.getClaimAsBoolean(JwtService.CLAIM_PLATFORM));
+            String tid = jwt.getClaimAsString(JwtService.CLAIM_TENANT);
+            if (!platform && tid == null) {
+                throw new InvalidBearerTokenException("Token has no tenant");
+            }
+            boolean support = Boolean.TRUE.equals(jwt.getClaimAsBoolean(JwtService.CLAIM_SUPPORT));
+            TenantContext.set(new TenantContext.State(tid == null ? null : UUID.fromString(tid), platform));
             String sid = jwt.getClaimAsString(JwtService.CLAIM_SESSION_ID);
-            if (sid == null || !sessionValidator.isActive(UUID.fromString(sid), UUID.fromString(jwt.getSubject()))) {
+            boolean active = sid != null && (support
+                    ? sessionValidator.isSupportActive(UUID.fromString(sid), UUID.fromString(jwt.getSubject()), UUID.fromString(tid))
+                    : sessionValidator.isActive(UUID.fromString(sid), UUID.fromString(jwt.getSubject()), platform));
+            if (!active) {
+                TenantContext.clear();
                 throw new InvalidBearerTokenException("Session is no longer active");
+            }
+            if (support) {
+                authorities.add(new SimpleGrantedAuthority("SUPPORT"));
             }
             String role = jwt.getClaimAsString(JwtService.CLAIM_ROLE);
             if (role != null) {
@@ -197,7 +236,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(properties.security().corsAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "X-Client-Type"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "X-Client-Type", "X-Branch-Id"));
         config.setExposedHeaders(List.of("X-Request-Id", "Content-Disposition"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

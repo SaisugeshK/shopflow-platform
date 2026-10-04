@@ -56,6 +56,10 @@ public class BusinessSettings {
     private boolean notifyEmail;
     private boolean notifyWhatsapp;
     private int dataRetentionYears;
+    /** Batch + expiry (§0B.7): expired batches cannot be sold. */
+    private boolean blockExpiredSales = true;
+    /** Batches expiring within this many days are "near expiry". */
+    private int nearExpiryDays = 30;
 
     @Column(nullable = false)
     private Instant updatedAt;

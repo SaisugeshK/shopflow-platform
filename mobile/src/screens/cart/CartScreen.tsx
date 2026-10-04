@@ -13,7 +13,7 @@ import { useCart } from '@/features/shop'
 import { api } from '@/services/api'
 import type { Cart } from '@/services/types'
 import { colors, radius } from '@/theme/tokens'
-import { money } from '@/utils/format'
+import { money, quantity } from '@/utils/format'
 
 /** C04 Cart (§37). Every figure comes from the backend. */
 export default function CartScreen() {
@@ -57,7 +57,8 @@ export default function CartScreen() {
                   </Pressable>
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text weight="600" numberOfLines={2}>{i.productName}</Text>
-                    <Text variant="xs" color="muted">{money(i.unitPrice)} / {i.unit} · {i.taxRate}% GST</Text>
+                    <Text variant="xs" color="muted">{money(i.unitPrice)} / {i.unit}{i.unitFactor !== 1 ? ` (${Number(i.unitFactor)} units)` : ''} · {i.taxRate}% GST</Text>
+                    {i.schemeName && <Text variant="xs" color="success">{i.freeQuantity ? `${quantity(i.freeQuantity)} free · ` : ''}{i.schemeName}</Text>}
                     {i.issue && <Text variant="xs" color="danger">{i.issue}</Text>}
                     <View style={styles.rowBetween}>
                       <QuantityStepper value={Number(i.quantity)} min={1} onChange={(v) => update.mutate({ id: i.id, qty: v })} label={`Quantity of ${i.productName}`} />

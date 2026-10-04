@@ -36,7 +36,7 @@ public class FileController {
     @GetMapping("/public/{id}")
     @Operation(summary = "Get a public image", description = "Only product images and the business logo are served here.")
     public ResponseEntity<byte[]> publicFile(@PathVariable UUID id) {
-        StoredFile file = files.get(id);
+        StoredFile file = files.getPublic(id);
         if (!PUBLIC_PURPOSES.contains(file.getPurpose())) {
             throw BusinessException.notFound(ErrorCode.RESOURCE_NOT_FOUND, "File");
         }

@@ -104,7 +104,9 @@ public final class CustomerDtos {
                                  String alternateMobile, String email, String gstin, String pan, String status,
                                  String statusReason, Instant statusChangedAt, String notes, boolean hasLogin,
                                  List<AddressResponse> addresses, CreditProfileResponse credit,
-                                 CreditService.Outstanding outstanding, Instant createdAt, Instant updatedAt) {
+                                 CreditService.Outstanding outstanding, Instant createdAt, Instant updatedAt,
+                                 /* Agent / broker for commission (§0B.9); staff only. */
+                                 UUID agentId) {
     }
 
     public record LedgerEntryResponse(UUID id, LocalDate date, String entryType, String referenceType, UUID referenceId,

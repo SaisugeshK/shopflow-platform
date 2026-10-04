@@ -42,9 +42,9 @@ export function StockPage() {
               <DataTable rows={d.items} rowKey={(r) => r.productId} caption="Stock" columns={[
                 { key: 'p', header: 'Product', render: (r) => <Link to={`/app/products/${r.productId}`}><div style={{ fontWeight: 600 }}>{r.productName}</div><div className="xs muted">{r.sku} · {r.category}</div></Link> },
                 { key: 'o', header: 'On hand', align: 'right', render: (r) => `${quantity(r.onHand)} ${r.unit}` },
-                { key: 'r', header: 'Reserved', align: 'right', render: (r) => quantity(r.reserved) },
+                { key: 'r', header: 'Reserved', align: 'right', priority: 'low', render: (r) => quantity(r.reserved) },
                 { key: 'a', header: 'Available', align: 'right', render: (r) => <strong>{quantity(r.available)}</strong> },
-                { key: 'm', header: 'Minimum', align: 'right', render: (r) => quantity(r.minimumStock) },
+                { key: 'm', header: 'Minimum', align: 'right', priority: 'low', render: (r) => quantity(r.minimumStock) },
                 { key: 'v', header: 'Value (cost)', align: 'right', render: (r) => money(r.stockValue) },
                 { key: 's', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
                 { key: 'x', header: '', render: (r) => canWrite && <Button size="sm" variant="ghost" icon={<SlidersHorizontal size={14} />} onClick={() => setAdjusting(r)}>Adjust</Button> },

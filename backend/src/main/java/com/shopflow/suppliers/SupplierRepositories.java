@@ -19,6 +19,8 @@ public interface SupplierRepositories {
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT s FROM Supplier s WHERE s.id = :id")
         Optional<Supplier> findByIdForUpdate(@Param("id") UUID id);
+
+        Optional<Supplier> findByUserId(UUID userId);
     }
 
     interface SupplierAddressRepository extends JpaRepository<SupplierAddress, UUID> {

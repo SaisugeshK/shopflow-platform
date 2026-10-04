@@ -110,9 +110,10 @@ export default function OrderDetailScreen() {
               )}
               <Card title="Items">
                 <LineItems lines={(o.items ?? []).map((i) => ({
-                  id: i.id, name: i.productName, unit: i.unit, rate: i.rate, amount: i.lineTotal, qty: i.orderedQuantity,
+                  id: i.id, name: i.freeItem ? `${i.productName} (free)` : i.productName, unit: i.unit, rate: i.rate, amount: i.lineTotal, qty: i.orderedQuantity,
                   note: [
                     `GST ${i.taxRate}%`,
+                    i.schemeName ? `scheme ${i.schemeName}` : null,
                     s !== 'PLACED' ? `accepted ${quantity(i.acceptedQuantity)}` : null,
                     i.deliveredQuantity > 0 ? `delivered ${quantity(i.deliveredQuantity)}` : null,
                     i.cancelledQuantity > 0 ? `cancelled ${quantity(i.cancelledQuantity)}` : null,

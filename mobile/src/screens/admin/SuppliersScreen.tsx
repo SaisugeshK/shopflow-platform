@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { router, Stack, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { View } from 'react-native'
+import { SupplierPortalSection } from '@/screens/admin/PurchaseOrderScreens'
 import { ListFilters } from '@/components/admin/Filters'
 import { RequirePermission } from '@/components/admin/RequirePermission'
 import { Button } from '@/components/ui/Button'
@@ -121,6 +122,7 @@ export function SupplierDetailScreen() {
                   ['Address', s.address ? `${s.address.addressLine1}, ${s.address.city}, ${s.address.state} – ${s.address.pincode}` : undefined],
                 ]} />
               </Card>
+              <SupplierPortalSection supplierId={s.id} defaultMobile={s.mobileNumber} />
               <Card title="Recent purchases" padded={false}>
                 <QueryState query={purchases} isEmpty={(d) => d.items.length === 0} empty={<EmptyState title="No purchases" />}>
                   {(d) => <>{d.items.map((p) => <ListRow key={p.id} onPress={() => router.push(`/admin/purchase/${p.id}`)} title={p.purchaseNumber} subtitle={date(p.purchaseDate)} meta={<View style={{ marginTop: 4 }}><StatusBadge status={p.status} /></View>} right={<Text weight="600" num>{money(p.grandTotal)}</Text>} />)}</>}

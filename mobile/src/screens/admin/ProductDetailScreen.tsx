@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as ImagePicker from 'expo-image-picker'
 import { router, Stack, useLocalSearchParams } from 'expo-router'
 import { Image, StyleSheet, View } from 'react-native'
+import { BatchesSection, LabelsButton, optionRows, SerialsSection, VariantsSection } from '@/components/admin/ProductOptions'
 import { RequirePermission } from '@/components/admin/RequirePermission'
+import { Alert, EmptyState, QueryState } from '@/components/ui/Feedback'
 import { imageUri } from '@/components/shop/ProductCard'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Badge, Card, KeyValue, ListRow, StatusBadge } from '@/components/ui/Data'
-import { EmptyState, QueryState } from '@/components/ui/Feedback'
 import { Grid, Screen, useColumns } from '@/components/ui/Screen'
 import { Text } from '@/components/ui/Text'
 import { toast } from '@/components/ui/Toast'
@@ -69,8 +70,12 @@ export default function ProductDetailScreen() {
                   <StatusBadge status={p.stockStatus} />
                   {!p.active && <Badge>Inactive</Badge>}
                   {p.featured && <Badge tone="primary">Featured</Badge>}
+                  {p.variantGroup && <Badge tone="purple">Variant group</Badge>}
                 </View>
+                {!p.variantGroup && <View style={{ alignSelf: 'flex-start' }}><LabelsButton productIds={[p.id]} /></View>}
               </View>
+              {p.parentId && <Alert>This is a variant. <Text variant="small" color="primary" weight="700" onPress={() => router.push(`/admin/product/${p.parentId}`)}>Open the group</Text></Alert>}
+              {p.variantGroup && <Alert>A variant group is not sold itself; sell, buy and stock its variants.</Alert>}
               <Card title="Stock">
                 <KeyValue items={[
                   ['On hand', `${quantity(p.onHand)} ${p.unit}`], ['Reserved', quantity(p.reserved)],
@@ -80,10 +85,14 @@ export default function ProductDetailScreen() {
               <Card title="Price & tax">
                 <KeyValue items={[
                   ['Selling price', money(p.sellingPrice)], ['Purchase price (internal)', money(p.purchasePrice)], ['MRP', p.mrp != null ? money(p.mrp) : undefined],
-                  ['GST rate', `${p.gstRate}%`], ['HSN', p.hsnCode], ['Unit', p.unit], ['Brand', p.brand], ['Updated', dateTime(p.updatedAt)],
+                  ['GST rate', `${p.gstRate}%`], ['HSN', p.hsnCode], ['Unit', p.unit], ['Brand', p.brand],
+                  ...optionRows(p), ['Updated', dateTime(p.updatedAt)],
                 ]} />
                 {p.description && <Text variant="small" color="muted" style={{ marginTop: 10 }}>{p.description}</Text>}
               </Card>
+              <VariantsSection product={p} />
+              <BatchesSection product={p} />
+              <SerialsSection product={p} />
               <Card title="Images" actions={canWrite ? <Button size="sm" variant="secondary" icon="upload" loading={upload.isPending} onPress={pick}>Upload</Button> : undefined}>
                 {p.images.length === 0 ? <EmptyState icon="image" title="No images" description="PNG, JPEG or WebP up to 5 MB." /> : (
                   <Grid columns={columns}>

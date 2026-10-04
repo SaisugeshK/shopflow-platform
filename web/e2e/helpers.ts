@@ -6,8 +6,8 @@ import type { Page } from '@playwright/test'
  * otherwise from the backend's development-only endpoint.
  * If the server's resend cooldown is active (e.g. tests re-run quickly), waits it out and retries.
  */
-export async function login(page: Page, mobile10: string) {
-  await page.goto('/login')
+export async function login(page: Page, mobile10: string, path = '/login') {
+  await page.goto(path)
   await page.getByLabel('Mobile number').fill(mobile10)
   const heading = page.getByRole('heading', { name: 'Verify OTP' })
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -15,8 +15,10 @@ export async function login(page: Page, mobile10: string) {
     const alert = page.getByRole('alert')
     await expect(heading.or(alert)).toBeVisible()
     if (await heading.isVisible()) break
-    const text = (await alert.textContent()) ?? ''
-    const seconds = Number(/wait (\d+) seconds/.exec(text)?.[1] ?? 'NaN')
+    // The alert may disappear again (e.g. the OTP screen replaced it); then just re-check.
+    const text = (await alert.first().textContent({ timeout: 2000 }).catch(() => '')) ?? ''
+    if (!text && (await heading.isVisible())) break
+    const seconds = Number(/wait (\d+) seconds/.exec(text)?.[1] ?? (text ? 'NaN' : '1'))
     if (Number.isNaN(seconds)) throw new Error(`OTP request failed: ${text}`)
     await page.waitForTimeout((seconds + 1) * 1000)
   }

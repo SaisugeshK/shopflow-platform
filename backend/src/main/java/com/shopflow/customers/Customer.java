@@ -21,6 +21,8 @@ public class Customer extends BaseEntity {
     @Column(nullable = false)
     private UUID businessId;
     private UUID userId;
+    /** Agent / broker who earns commission on this customer's invoices (§0B.9). */
+    private UUID agentId;
     @Column(nullable = false)
     private String customerCode;
     @Column(nullable = false)

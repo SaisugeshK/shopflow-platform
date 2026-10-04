@@ -5,13 +5,13 @@
 **Document status:** Implementation source of truth / build contract\
 **Audience:** Claude Code / AI coding agents, backend/frontend/mobile
 developers, QA, DevOps\
-**Application model:** One shop/business, one shared Java backend, one
-PostgreSQL database, React Web first, React Native Mobile second\
+**Application model:** Multi-tenant SaaS — many businesses (tenants) of many trades on one shared Java backend
+and one PostgreSQL database with row-level security (§0B). Originally specified for one shop.\
 **Primary clients:** React Web first, React Native Mobile second (same backend)\
 **Backend:** Java + Maven\
 **Container/build:** Podman\
 **Authentication:** Mobile number + OTP\
-**Roles:** OWNER, ADMIN, CUSTOMER
+**Roles:** SUPER_ADMIN (platform); OWNER, ADMIN, CUSTOMER, SUPPLIER (per tenant) — §0B.2
 
 ------------------------------------------------------------------------
 
@@ -78,6 +78,8 @@ Last updated: 2026-10-03.
 | Stage 3 — production providers | Not started (no production adapters, S3 storage, shared rate limiter or UPI QR image yet). |
 | Stage 4 — React Native mobile | Built: one Expo app for customers and Owner/Admin (see below). |
 | Stage 5 — mobile acceptance | Partly verified: unit tests, Android/iOS bundles and Playwright journeys on a phone viewport pass; real-device testing, MASVS review, push notifications and deep links are open. |
+| GCP demo deployment | Live on Cloud Run as one image (web build bundled into the backend jar), Cloud SQL database `shopflow`, private GCS bucket for images; still mock providers (D-030). |
+| Multi-tenant SaaS (§0B) | Approved 2026-10-03. Phases 0 (branding + responsiveness), 1 (tenancy, RLS, Super Admin console, modules, join links), 2 (industry options), 3 (purchase orders + supplier portal), 4 (trade documents) and 5 (plans, self-signup, custom domains, branches, Super Admin on mobile) done 2026-10-04, not yet deployed. |
 
 ### Approved changes to this document
 
@@ -100,6 +102,377 @@ Last updated: 2026-10-03.
    header turns compact while typing. Shared implementation: `mobile/src/components/ui/KeyboardAware.tsx`.
 6. **Web UX additions.** Search fields have a clear (×) button; header menus close on outside click / Escape; the
    sidebar scrollbar is hidden; unexpected rendering errors show a friendly error screen.
+7. **GCP single-image deployment (D-030).** For Cloud Run the web build is bundled into the backend jar and served
+   from the same origin (SPA fallback for deep links); Cloud SQL is reached through the Cloud SQL socket factory;
+   product images use a private Google Cloud Storage bucket (`app.storage.provider=gcs`) and are streamed through
+   `/api/v1/files/public/{id}`. The local Podman stack (separate web container) is unchanged.
+8. **Multi-tenant, multi-industry platform (D-031…D-039).** ShopFlow becomes a SaaS for many businesses and trades:
+   one URL, global identity with per-tenant memberships, shared database with row-level security, SUPER_ADMIN
+   console, per-tenant module switches, industry templates and product options, purchase orders with a supplier
+   portal, trade documents, tenant branding and a tested responsive standard. Full contract in **§0B**; it
+   supersedes the single-business wording in §1–§3, §6, §44–§47 and §63–§64.
+
+------------------------------------------------------------------------
+
+# 0B. Multi-Tenant, Multi-Industry Platform (approved 2026-10-03)
+
+ShopFlow is sold to **many businesses (tenants)** of **many trades**, not built for one shop. This section is the
+build contract for that change. Where it conflicts with older single-business wording in §1, §2, §3, §6, §44–§47 or
+§63–§64, **this section wins**. Decisions and reasons: `docs/decisions/DECISIONS.md` D-031…D-039.
+
+## 0B.1 Approved decisions
+
+| # | Decision |
+|---|---|
+| 1 | **One URL** for every tenant. After OTP sign-in a user who belongs to several businesses chooses one (last choice remembered; switcher in the header). Per-tenant subdomains/custom domains are a later option (Phase 5). |
+| 2 | **One person, one login.** A mobile number is a global identity; it may be a member of many tenants with a different role in each (e.g. customer of two shops, supplier to five businesses). |
+| 3 | **Shared database, shared schema, tenant key on every tenant-owned row, enforced by PostgreSQL Row-Level Security** (industry-standard pool model). A separate database per tenant is not used now. |
+| 4 | **Supplier portal: the supplier can change everything** on a purchase order (price, quantity, availability, delivery date, notes, substitutes, attachments, extra lines) with **unlimited counter-offer rounds**. |
+| 5 | **First trades:** Grocery/FMCG, Textile/Garments, Construction materials. Then Electrical/Electronics/Hardware, Auto spares, Footwear, Cosmetics, Stationery, Mobiles, Paints. Pharma last (compliance review). **Out of scope:** jewellery and restaurants. |
+| 6 | **One shop per tenant now.** Branches/warehouses with stock per location come later (Phase 5); the schema must not block them. |
+| 7 | **Super Admin console: web first**, mobile in Phase 5. Every other feature ships on **web and mobile together**. |
+| 8 | **Deployment only on explicit approval** after all end-to-end suites pass. |
+
+## 0B.2 Roles
+
+| Role | Level | Purpose |
+|---|---|---|
+| `SUPER_ADMIN` | Platform | Runs ShopFlow the product: creates and manages tenants, module switches, plans. Never sees tenant business data except through audited support access (§0B.5). |
+| `OWNER` | Tenant | Full control of one business (§3.1). Each tenant has at least one Owner. |
+| `ADMIN` | Tenant | Operational staff (§3.2), permission-based. |
+| `CUSTOMER` | Tenant | Retail-shop buyer of that tenant (§3.3). |
+| `SUPPLIER` | Tenant | Vendor of that tenant; uses the supplier portal (§0B.8) only. |
+
+Permissions stay separate from roles (§3.2). New permissions: `PURCHASE_ORDER_READ`, `PURCHASE_ORDER_WRITE`,
+`GOODS_RECEIPT_WRITE`, `SUPPLIER_PORTAL_MANAGE`, `QUOTATION_READ/WRITE`, `CHALLAN_READ/WRITE`, `JOB_WORK_READ/WRITE`.
+The supplier role has its own fixed permission set (`SUPPLIER_SELF`).
+
+## 0B.3 Tenancy model
+
+**Tenant = business.** The existing `businesses` table is the tenant table and `business_id` is the tenant key (no
+rename). A tenant also gets (V8): `tenant_code` (short, unique, public — used in join links; Tenant #1 is `main`),
+`status` (`ACTIVE`, `SUSPENDED`), `industry`, `owner_name`, `owner_mobile`, `status_reason`, `created_by`; plan
+fields come in Phase 5.
+
+**Data isolation (Row-Level Security):**
+
+1. Every tenant-owned table has `business_id UUID NOT NULL` — including line/child tables (order items, invoice
+   items, ledger entries, stock movements…). Child tables are not protected through joins; they carry the key.
+   A `BEFORE INSERT` trigger (`app_fill_business_id`) fills it from the parent row (or, for tables without a parent,
+   from the session tenant) when the application leaves it empty, so existing entities did not change.
+2. Every tenant-owned table has `ENABLE` **and** `FORCE ROW LEVEL SECURITY` and one policy `tenant_isolation`:
+   `app_platform_access() OR business_id = app_current_tenant()` for `USING` and `WITH CHECK`. FORCE makes the
+   policy apply to the table owner as well. Identity tables (`otp_requests`, `user_sessions`, `refresh_tokens`,
+   `platform_admins`, `roles`, `permissions`, webhook event logs, `idempotency_keys`) are global and have no policy.
+3. `TenantContext` (thread-local) holds the tenant, set from the signed access token's `tid` claim during
+   authentication. `TenantAwareDataSource` copies it to every pooled connection on checkout
+   (`app.tenant_id`, `app.platform_access`), and to the connection of a running transaction when the context
+   switches. No tenant set ⇒ tenant tables return no rows and reject writes (tested).
+4. Platform code (Super Admin console, the sign-in lookup across memberships, the WhatsApp sweeper, payment and
+   WhatsApp webhook routing, public logo/product images, join-link landing data) switches explicitly with
+   `TenantContext.callAsPlatform(...)`; webhooks and sweepers then re-enter the owning tenant with
+   `callInTenant(...)` before doing any work. Background jobs inherit the caller's tenant.
+   When the database user is a superuser (local development, tests), connections also `SET ROLE shopflow_rls`
+   (a non-superuser role created by V8), because superusers bypass RLS; production uses an ordinary owner role.
+   Every later migration that touches tenant rows starts with `SELECT set_config('app.platform_access','on',false)`.
+5. Application code still filters by tenant (defence in depth); RLS is the backstop that makes a missed filter
+   return nothing instead of another tenant's data.
+6. Business identifiers are unique **per tenant** (`UNIQUE (business_id, …)`, including users' mobile numbers,
+   stock adjustment, purchase payment and receipt numbers). Only identity data is global: platform tables,
+   sessions, idempotency keys.
+7. Storage keys are prefixed `tenants/{business_id}/…`. Cache keys, rate-limit buckets, audit records,
+   notifications and background jobs all carry the tenant.
+8. Suspended tenant ⇒ its users cannot sign in to it or call its APIs (`TENANT_SUSPENDED`); suspension revokes
+   every open session of the tenant at once; data is kept.
+
+## 0B.4 Identity, memberships and sign-in
+
+- **As built (D-032):** the person is identified by the **mobile number** (proved by OTP). Each `users` row is
+  that number's **membership in one tenant** (role, status, extra permissions, linked customer/supplier record);
+  `UNIQUE (business_id, mobile_number)`. Keeping `users` as the membership table means every existing reference to
+  `users.id` (orders, audit, sessions…) stayed tenant-scoped with no data migration. A separate `tenant_memberships`
+  table was therefore not needed.
+- `platform_admins (id, mobile_number, full_name, status)` — SUPER_ADMIN, not tenant data. Numbers in
+  `PLATFORM_SUPER_ADMIN_MOBILES` are added/re-activated at startup (dev default +919000000009); further admins are
+  added in the console. There is no screen to self-promote.
+- Sessions belong to a user (tenant) or a platform admin (`user_sessions.user_id` xor `platform_admin_id`, plus
+  `business_id`).
+
+**Sign-in flow (one URL):**
+
+``` text
+Mobile → OTP → POST /auth/otp/verify {…, tenantCode?}
+  → with tenantCode (join link): member ⇒ session in that tenant; not a member ⇒ registration token for it
+  → otherwise list the places the number can enter (active memberships + "Platform console" if super admin)
+      none ⇒ registration with DEFAULT_TENANT_CODE (demo: "main"), or TENANT_JOIN_LINK_REQUIRED when blank
+      exactly one ⇒ session immediately
+      several ⇒ {selectionRequired, selectionToken, tenants} → "Choose business" screen
+  → POST /auth/select-tenant (bearer = selection token) → access + refresh tokens (claims: sub, tid, role, perms;
+    platform tokens: plat=true, no tid)
+  → POST /auth/switch-tenant (signed in) → new session in another membership; the old session ends
+```
+
+`GET /auth/me` returns `business`, `memberships` (for the switcher) and `modules`. The web user menu and the
+customer header show "Switch business"; the app shows it on More / Account. The console is web-only for now: the
+app lists it but explains that it opens on the web.
+
+**Joining a business:**
+
+- *Customer:* each tenant has a join link / QR (`/join/{tenant_code}`) and a shop code. A new or existing person
+  who opens it (or enters the code at registration) registers as a customer **of that tenant** (pending approval as
+  today, §4.2). A person can join several shops.
+- *Staff (Admin):* invited by the tenant Owner (existing users screen) — creates a membership.
+- *Supplier:* tenant opens a supplier record → "Invite to portal" (mobile number) — creates a `SUPPLIER`
+  membership linked to that supplier record.
+- *Owner:* created by the Super Admin when the tenant is created.
+
+## 0B.5 Super Admin console (web first)
+
+Screens: Tenants (search, status, industry, last activity) · Create tenant (business name, legal name, state,
+optional GSTIN, owner name + mobile, industry template, modules) · Tenant detail (profile, status, modules,
+usage: users/products/orders/invoices/storage, owner contacts) · Suspend / Reactivate (reason required) ·
+Module switches · Platform admins · Industry templates (read-only catalogue) · Platform audit log.
+
+**Support access:** to look inside a tenant (troubleshooting) the Super Admin requests time-boxed access with a
+reason; it is audited, visible to the tenant Owner, and expires automatically. No silent access to tenant data.
+*As built:* `POST /platform/tenants/{id}/support-access {reason ≥10 chars, minutes 15–120}` returns a support access
+token (owner read permissions, `sup=true`, no refresh token). Support tokens may only use GET/HEAD (plus logout);
+the `SUPPORT_ACCESS_STARTED` entry is written to the tenant's own audit log; suspending the tenant ends it. The web
+shows a yellow "Support view" banner with "Exit support view", which restores the console session.
+
+APIs live under `/api/v1/platform/**`, require `SUPER_ADMIN`, and are never reachable with a tenant token.
+
+## 0B.6 Module switches (per tenant)
+
+`tenant_modules (business_id, module_code, enabled, config JSONB, updated_by, updated_at)`, changed only by the
+Super Admin and audited. The backend rejects disabled-module calls with `403 MODULE_DISABLED`; `GET /auth/me`
+returns enabled modules and web/mobile hide disabled menus and fields.
+
+| Module code | Feature |
+|---|---|
+| `CUSTOMER_PORTAL` | Customer ordering (web shop + mobile) |
+| `CREDIT` | Credit sales and outstanding |
+| `RETURNS` | Sales/purchase returns |
+| `ONLINE_PAYMENTS` · `WHATSAPP` · `EINVOICE` | External integrations (still mock until Stage 3) |
+| `PURCHASE_ORDERS` | Internal purchase orders + goods receipt |
+| `SUPPLIER_PORTAL` | Supplier login and quotation rounds (requires `PURCHASE_ORDERS`) |
+| `UOM_CONVERSIONS` · `VARIANTS` · `BATCH_EXPIRY` · `SERIAL_NUMBERS` | Product options (§0B.7) |
+| `DAILY_RATES` · `SCHEMES` · `CHARGES` · `BARCODE_LABELS` | Pricing and selling options |
+| `QUOTATIONS` · `DELIVERY_CHALLAN` · `EWAY_BILL` · `JOB_WORK` · `COMMISSION` · `PROJECT_ACCOUNTS` | Trade documents (§0B.9) |
+
+## 0B.7 Industry options and templates
+
+Options are generic and switched on per tenant; any product can use them.
+
+| Option | Behaviour |
+|---|---|
+| Decimal quantities | Metres, kg, litres (stock already uses 3 decimals). |
+| Unit conversions | Base unit for stock; alternate units for buying/selling with exact factors (1 case = 12 packs = 144 pcs; 1 bag = 50 kg; 1 tonne = 1000 kg). Prices per unit. |
+| Variants | Attribute sets (size, colour, design no., shade…); each variant is a sellable SKU with own price, stock and barcode; grid entry on purchase/sale screens. |
+| Batch + expiry | Stock per batch; first-expiry-first-out allocation; near-expiry alerts and report; selling expired stock blocked (configurable). |
+| Serial / IMEI | Captured at goods receipt and at sale; warranty from sale date; search by serial; replacement/repair claims. |
+| Pricing modes | Fixed, MRP-based, or **daily rate list** (effective-dated prices; an order captures the rate when placed). |
+| Schemes | Buy X get Y, slab discounts by quantity/value, free goods — calculated by the backend pricing service only. |
+| Charges | Transport, loading/unloading, cutting — invoice-level charges with their own tax settings. |
+| Barcode labels | Printable labels per product/variant/batch. |
+
+**Industry templates** (chosen by the Super Admin when creating a tenant; everything editable afterwards) pre-set
+units, categories, attribute sets, tracking defaults and modules:
+
+| Template | Pre-set focus |
+|---|---|
+| Grocery / FMCG / kirana wholesale | Batch + expiry, case/pack/piece units, MRP, schemes, weight items, barcode |
+| Textile / fabric / garments | Size × colour variants, metres, roll/design numbers, job work, broker commission, price-slab GST rules |
+| Construction materials | Weight units (kg/tonne/bag), daily rates, delivery challan, transport/loading charges, project accounts, e-way bill |
+| Electrical / electronics / hardware | Serial + warranty, brand/model specifications, metre/coil units, customer quotations |
+| Auto spares | Part-number search, vehicle fitment table, alternate parts |
+| Footwear · Cosmetics · Stationery · Mobiles · Paints | Size variants · expiry · simple catalogue · IMEI serials · shade codes |
+| Pharma / medical (last) | Batch + expiry mandatory, licence fields — only after compliance review |
+| General | Plain catalogue, no special options |
+
+GST rates, price-based slab rules, e-invoice and e-way-bill thresholds are **settings validated with a tax advisor**,
+never hard-coded (§112).
+
+**As built (Phase 2, migration V9):**
+
+- *Units.* Stock is always kept in the product's base unit. `product_units (unit, factor)` lists alternate units;
+  every document line stores its `unit` and `unit_factor` (cart, order, invoice and purchase items), and every stock
+  change uses quantity × factor. A rate entered per alternate unit defaults to base price × factor. New base units:
+  NOS, PAIR, CASE, TONNE, QUINTAL, ROLL, COIL, REAM, BUNDLE, SQFT, CFT, LOAD, CM.
+- *Decimals.* `decimal_quantity` per product (on by default for KG/G/L/ML/M…); otherwise the base quantity of every
+  line must be whole.
+- *Variants.* `POST /products/{id}/variants {attributes:[{name, values[]}]}` turns a product into a variant group
+  (`variant_group`, never sold or stocked) and creates one product per combination (`parent_id`,
+  `variant_attributes` "Size: M · Colour: Blue"). Catalogue, pickers and documents only offer sellable products.
+- *Batch + expiry.* `stock_batches` (on_hand per batch, expiry) and `batch_movements` (every tracked movement and the
+  batch it used). Purchases need a batch number for batch-tracked products; sales take first-expiry-first-out,
+  skip expired batches when `block_expired_sales` (setting), and fail with `INSUFFICIENT_STOCK` explaining expired
+  stock. Returns and cancellations go back to the batches they left. `GET /batches?status=NEAR_EXPIRY|EXPIRED|ALL`
+  and `POST /batches/products/{id}/write-off` (EXPIRY_OUT movement). Switching tracking on for a product that has stock
+  puts that stock in an `UNBATCHED` batch.
+- *Serial / IMEI.* `product_serials` (IN_STOCK, SOLD, RETURNED_TO_SUPPLIER, REMOVED). Purchases capture one serial per
+  base unit; counter invoices choose serials (`GET /serials/in-stock`), order deliveries take the oldest; sale sets
+  customer, invoice/order and `warranty_until` (sale date + `warranty_months`). Cancellations and returns put them
+  back in stock. `GET /serials?q=` finds a serial with its buyer, invoice and warranty.
+- *Pricing modes.* `FIXED`; `MRP` (selling price = MRP − `mrp_discount_percent`, computed on save); `DAILY_RATE`
+  (`product_daily_rates`; `PUT /daily-rates` sets rates for a date; the rate in force today is copied to the selling
+  price immediately and by a 00:05 IST job, so every price path uses it and orders keep their placed rate).
+- *Schemes.* `schemes` (BUY_X_GET_Y per product; QUANTITY_SLAB and VALUE_SLAB per product or category; optional
+  validity dates). Evaluated only by the server — cart preview, order placement and counter invoices (unless staff
+  enter their own discount). Free goods are a separate zero-value line (`free_item`) and still leave stock; the best
+  slab discount applies.
+- *Charges.* `invoice_charges` (TRANSPORT, LOADING, UNLOADING, CUTTING, PACKING, INSURANCE, OTHER) with their own
+  GST and SAC code, included in the invoice totals, tax summary and PDF.
+- *Barcode labels.* `GET /labels/products?ids=…&copies=n` → A4 PDF (3 × 8) with name, price/MRP and Code 128 of the
+  product barcode (or SKU).
+- Each option is enforced by its module (403 `MODULE_DISABLED`); web and mobile hide what the business does not have.
+
+## 0B.8 Purchase orders and supplier portal
+
+``` text
+DRAFT → SENT → QUOTED ⇄ COUNTERED (unlimited rounds) → ACCEPTED (all or selected lines)
+      → PARTIALLY_RECEIVED → RECEIVED → CLOSED
+  Side exits: REJECTED · CANCELLED · EXPIRED (quote validity passed)
+```
+
+- **Supplier can change:** rate, quantity, availability (available / partial / unavailable), delivery date (per line
+  and overall), notes per line, substitute suggestion, extra lines (each needs business approval), attachments
+  (quotation/invoice PDF or image), quote validity date.
+- **Business can:** edit any line, counter, accept all or selected lines (accepted lines lock), reject, cancel.
+- Every round is an immutable revision (`purchase_order_revisions` + line snapshots, who/when); screens show
+  line-by-line differences between rounds.
+- **Goods receipt (GRN):** receive against accepted lines (partial deliveries allowed), record short / damaged /
+  excess, capture the supplier's tax invoice number and file; posting the GRN creates the stock-in and supplier
+  ledger entry through the existing purchase posting (§14). Price/quantity mismatches against the accepted PO are
+  flagged.
+- **Visibility:** a supplier sees only POs addressed to them in that tenant — never selling prices, customers,
+  other suppliers or profit.
+- Notifications (in-app; WhatsApp when enabled) at every transition.
+- Web: Purchases → Purchase orders; supplier area `/supplier`. Mobile: supplier tabs (POs, Deliveries, Profile).
+
+**As built (Phase 3, migration V10):** `purchase_orders`, `purchase_order_lines` (business request + supplier answer:
+availability, delivery date, note, substitute; `added_by`; line status OPEN/ACCEPTED/REJECTED; received quantity),
+`purchase_order_revisions` (immutable, full JSON snapshot per round; screens show the changes to the previous round),
+`purchase_order_attachments` (PDF/image; mobile attaches photos), `goods_receipts` + `goods_receipt_lines`.
+Supplier logins are `users` rows with role SUPPLIER linked by `suppliers.user_id`, created from the supplier page
+(`POST /suppliers/{id}/portal-access`; DELETE turns the login off and ends its sessions); permission `SUPPLIER_SELF`.
+Business API `/purchase-orders` (create/send/counter/accept/reject/cancel/close/receipts/attachments); supplier API
+`/supplier-portal/purchase-orders` (own, never drafts; quote with line changes and extra lines, decline, attachments)
+and `/supplier-portal/deliveries`. Accepting needs a product link for each extra supplier line; unavailable lines are
+rejected. A receipt posts a normal purchase for the good quantity (received − damaged) at the invoice rate, carrying
+batch/expiry/serials, and flags rate differences, excess and damage. Quotations past their validity date become
+EXPIRED when next read. Notifications go to the supplier login and to staff at each step.
+
+## 0B.9 Trade documents (Phase 4)
+
+Customer quotation (convert to order) · delivery challan (goods out before invoice; invoiced later) · e-way bill
+(mock provider first, like e-invoice) · job work (issue material to a job worker, receive processed goods, track
+pending) · agent/broker commission (per customer/invoice, commission report) · project/site accounts for
+contractor customers.
+
+**As built (Phase 4, migration V11, package `com.shopflow.trade`):**
+- **Quotations** (`/quotations`, customer `/my/quotations`): DRAFT → SENT → CONVERTED / REJECTED / CANCELLED, and
+  EXPIRED when read after `valid_until` (default 15 days). Rates default to the customer's price; tax and round-off
+  are worked out like an invoice. Accepting (staff, or the customer for a SENT quotation, choosing how to pay)
+  places an order through `OrderService.createFromQuotation` at the quoted rates and discounts, with no schemes on
+  top. Customers never see drafts.
+- **Delivery challans** (`/delivery-challans`): issuing posts `CHALLAN_OUT`. Batches go first-expiry-first-out.
+  Serial numbers become SOLD to the customer. Cancelling an ISSUED challan posts `CHALLAN_RETURN_IN` back to the same
+  batches and serials. `POST /delivery-challans/{id}/invoice` creates and generates an invoice with source `CHALLAN`:
+  same lines and rates, no schemes, and **no stock movement**. Cancelling that invoice does not return stock; the
+  challan goes back to ISSUED.
+- **E-way bill** (`POST /invoices/{id}/eway-bill {distanceKm, vehicleNumber?, transport?}`): only for a generated
+  invoice. It gets a mock 12-digit number flagged `ewayTestOnly`. Validity is one day per 200 km.
+- **Job work** (`/job-work`): issuing posts `JOB_WORK_OUT`. Receiving can include:
+  - finished goods (`JOB_WORK_IN`, recorded as RECEIVE lines);
+  - unused material returned (`JOB_WORK_IN`);
+  - material used up (no stock change).
+
+  The job is OPEN, PARTIAL or CLOSED once nothing is still out. Charges accumulate. Cancelling is allowed only
+  before anything comes back. Products that track batches or serials cannot be sent for job work.
+- **Commission** (`/commissions/...`): agents have a percentage; `customers.agent_id` links a customer. When an
+  invoice is generated it stores the agent and `commission_amount` = taxable × %. Staff mark commission paid from the
+  report. Customers never see commission.
+- **Projects** (`/projects`, customer `/my/projects`): a project belongs to one customer. Quotations, orders,
+  challans and invoices can name it. The statement lists every document and shows billed, received and due.
+- Invoice responses carry a `trade` block (project, challan, e-way bill, and commission for staff only). Customer
+  detail carries `agentId` for staff.
+- Dev seed V9004 turns all six modules on for tenant "main". It adds the agent "Suresh Brokers" (2%), linked to Ravi
+  General Stores, and the project "New branch fit-out".
+- Tests: `TradeDocumentsIntegrationTest` (backend); `trade-documents.spec.ts` on web and on mobile.
+
+## 0B.10 Tenant branding
+
+In tenant context the **business name and logo** appear in the web sidebar header, the browser tab title, the
+customer shop header, the mobile app headers and the workspace switcher. "ShopFlow" is the product name: shown as
+"Powered by ShopFlow" and on the Super Admin console and sign-in screen.
+
+## 0B.11 Responsive standard (web and mobile)
+
+- Web breakpoints tested: **360, 390, 768, 1024, 1280, 1440+** px wide. Mobile: phones 360×800 and 390×844,
+  tablets 768×1024 and 1024×1366.
+- Page headers: the title keeps at least 260 px and the actions wrap below it; below 768 px the actions take the
+  full width. Headers with many actions use `PageActions`: on phones one primary action stays a button and the rest
+  move into a "More" menu. Tables become labelled cards below 900 px; columns marked `priority: 'low'` hide at
+  ≤ 1100 px. Tab strips may scroll sideways inside their own container (the page itself never does). The customer
+  shop switches to its bottom navigation below 1000 px. Forms are one column on phones; dialogs are full-screen on
+  phones. Charts and filter bars fit their container. Touch targets ≥ 44 px.
+- **Automated check:** a Playwright suite visits every route at each width and fails if the page scrolls sideways
+  (`scrollWidth > clientWidth`) or a heading/button is clipped. Part of every phase's definition of done.
+
+## 0B.12 Migration of the existing data
+
+A Flyway migration turns the current single business into **Tenant #1** with no data loss: adds `tenant_code`,
+`status`, template; adds `business_id` to child tables and back-fills it from the parent; converts per-user roles
+into `tenant_memberships`; widens global unique constraints to per-tenant ones (e.g. customers' `user_id`,
+stock adjustment and purchase payment numbers); enables RLS. Platform admins come from configuration.
+
+## 0B.13 Phases and definition of done
+
+| Phase | Scope | Platforms |
+|---|---|---|
+| 0 | Tenant business name in navigation; full responsiveness pass + viewport checks | Web + mobile |
+| 1 | Tenancy + RLS, memberships, select-tenant sign-in, join links, Super Admin console, module switches, migration | Console web; rest web + mobile |
+| 2 | Industry options and templates (Grocery, Textile, Construction first) | Web + mobile |
+| 3 | Purchase orders, quotation rounds, goods receipt, supplier portal | Web + mobile |
+| 4 | Quotations, delivery challan, e-way bill, job work, commission, project accounts | Web + mobile |
+| 5 | Plans/limits/usage, self-signup with approval, branches/warehouses, custom domains, Super Admin on mobile | Web + mobile |
+
+A phase is done only when: backend tests pass; **tenant-isolation tests** pass (two tenants: every list/detail API
+as tenant A returns none of tenant B's data, guessed IDs return 404, direct queries with the wrong tenant return
+zero rows); web and mobile end-to-end suites pass; viewport checks pass; docs, OpenAPI and Postman are updated.
+Deployment to GCP happens only after the product owner approves.
+
+## 0B.14 SaaS operations (Phase 5)
+
+**As built (migration V12, packages `com.shopflow.saas` and `com.shopflow.branches`, decision D-040):**
+- **Plans and limits:** `plans` (FREE, STARTER, GROWTH, ENTERPRISE) and `businesses.plan_code`. `PlanLimits` checks a
+  limit when a staff user, product, customer, branch or file is added and when an invoice is generated (per calendar
+  month); over the limit returns `403 PLAN_LIMIT_REACHED`. Owners see plan and usage in Settings → Plan & usage
+  (`GET /subscription`). The Super Admin changes plans (`PUT /platform/tenants/{id}/plan`, `GET /platform/plans`).
+- **Self-signup:** `/signup` (web and app). `POST /public/signup/otp` → `POST /public/signup` (OTP verified) stores a
+  `tenant_signups` row (PENDING; one pending request per mobile). The Super Admin lists, approves (creates the
+  business, owner and template exactly like "Register business", with a chosen plan and optional code) or rejects
+  with a reason (`/platform/signups/...`). `GET /public/signup/status`, `/public/plans` and `/public/industries`
+  are public.
+- **Custom domains:** `businesses.custom_domain` (unique), set with `PUT /platform/tenants/{id}/domain`.
+  `GET /public/tenants/by-host/{host}` lets the web sign-in page opened at that domain act as the business's join
+  link.
+- **Branches / warehouses (module `BRANCHES`):** `branches` (the default "Main branch" is created on first use),
+  `branch_stock` for non-default branches only (the main branch holds the rest of the total),
+  `stock_movements.branch_id`, and `stock_transfers` (+ items, numbers `ST/...`). Clients send the working branch as
+  `X-Branch-Id` (web: header switcher on wide screens and on the Branches page; app: More → Working branch); every
+  stock movement happens at that branch and outbound movements check the branch's own stock. Transfers post
+  `TRANSFER_OUT` and `TRANSFER_IN` (batches follow the stock; serial-tracked products are refused). A branch that
+  still holds stock cannot be closed.
+- **Super Admin on mobile:** overview, business search, business detail (usage, plan, modules, suspend/reactivate)
+  and sign-up approvals. Creating a business and support access stay on the web console.
+- Dev seed V9005: BRANCHES on for "main" with "Central Godown"; demo tenants on Growth; one pending sign-up
+  ("Lakshmi Paints & Hardware"). The dev profile allows more OTP requests (40 per number per 15 min, 1000 per IP per
+  hour) so the end-to-end suites can sign the demo users in repeatedly; production limits are unchanged.
+- Sign-in records `last_login_at` without the entity version check, so the same user signing in on two devices at
+  once no longer fails with a conflict.
+- Tests: `SaasIntegrationTest` (backend), `saas.spec.ts` (web and mobile), new routes added to both viewport sweeps.
 
 ------------------------------------------------------------------------
 
@@ -311,6 +684,10 @@ After the mobile app is implemented:
 
 # 1. Product Vision
 
+> **Update (2026-10-03, §0B):** ShopFlow is now a multi-tenant product sold to many wholesale/retail businesses
+> of many trades (grocery, textile, construction materials, electrical, and more). Read "the shop/business" below
+> as "each tenant". Mobile and web both serve customers and staff; suppliers get a portal (§0B.8).
+
 Build a premium, modern business application for a single
 wholesale/retail shop.
 
@@ -346,6 +723,10 @@ The system manages:
 
 # 2. Core Business Model
 
+> **Update (§0B.3):** every statement below now applies **per tenant**. Each tenant has its own profile, GST
+> identity, inventory, customers, suppliers, ledgers and reports, isolated by row-level security. One shop per
+> tenant for now; branches/warehouses later (§0B.1 #6).
+
 There is one primary shop/business.
 
 The shop has:
@@ -366,6 +747,9 @@ destructive redesign.
 ------------------------------------------------------------------------
 
 # 3. Roles
+
+> **Update (§0B.2):** roles are now `SUPER_ADMIN` (platform level) and, per tenant, `OWNER`, `ADMIN`, `CUSTOMER`
+> and `SUPPLIER`. A person can hold different roles in different tenants (§0B.4).
 
 ## 3.1 OWNER
 
@@ -561,6 +945,10 @@ Tokens must not be stored insecurely in mobile local storage.
 ------------------------------------------------------------------------
 
 # 6. Application Navigation
+
+> **Update (§0B):** a "Choose business" step follows sign-in when a person belongs to several tenants; the header
+> shows the tenant's name/logo with a switcher (§0B.10). New areas: Super Admin console (web first, §0B.5),
+> supplier portal `/supplier` on web and mobile (§0B.8). Menus hide disabled modules (§0B.6).
 
 ## 6.1 Owner Web
 
@@ -2057,6 +2445,9 @@ Product
 12. Payment allocation must be transactional.
 13. Invoice posting must be transactional.
 14. Use database constraints in addition to application validation.
+15. **Multi-tenancy (§0B.3):** every tenant-owned table carries `business_id NOT NULL` (child tables too), has
+    FORCE row-level security keyed on `app.tenant_id`, and uses per-tenant unique constraints. Only identity and
+    platform tables are global.
 
 ------------------------------------------------------------------------
 
@@ -2802,6 +3193,9 @@ Sidebar must support:
 -   Role-based menu
 -   Nested menus
 -   Keyboard navigation
+-   Tenant business name and logo at the top, "Powered by ShopFlow" at the bottom (§0B.10)
+
+Every screen must meet the responsive standard in §0B.11 (tested at 360–1440 px).
 
 ------------------------------------------------------------------------
 
@@ -2817,6 +3211,8 @@ Use:
 -   Sticky checkout CTA
 -   Floating cart indicator
 -   Pull-to-refresh where appropriate
+
+Mobile headers show the tenant's business name/logo (§0B.10); all screens meet §0B.11 on phones and tablets.
 
 Customer mobile must prioritize:
 

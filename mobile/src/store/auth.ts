@@ -1,14 +1,14 @@
 import { create } from 'zustand'
-import type { Me } from '@/services/api'
+import type { BusinessInfo, Me } from '@/services/api'
 
 /** Session state. The access token lives in memory; the refresh token is in the secure store (see tokenStorage). */
 interface AuthState {
   accessToken: string | null
   user: Me | null
   initialized: boolean
-  /** Single-use token for completing customer registration; memory only. */
-  registration: { token: string; mobile: string } | null
-  setRegistration: (r: { token: string; mobile: string } | null) => void
+  /** Single-use token for completing customer registration, and the business it registers with; memory only. */
+  registration: { token: string; mobile: string; business?: BusinessInfo } | null
+  setRegistration: (r: { token: string; mobile: string; business?: BusinessInfo } | null) => void
   setSession: (token: string, user: Me) => void
   setUser: (user: Me) => void
   clear: () => void
@@ -33,4 +33,9 @@ export function useCan(permission: string): boolean {
 
 export function useCanAny(permissions: string[]): boolean {
   return useAuthStore((s) => permissions.some((p) => s.user?.permissions.includes(p) ?? false))
+}
+
+/** Whether the business has a module switched on (§0B.6). The server enforces the same rule. */
+export function useModule(code: string): boolean {
+  return useAuthStore((s) => s.user?.modules?.includes(code) ?? false)
 }

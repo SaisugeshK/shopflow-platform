@@ -1,5 +1,6 @@
 package com.shopflow.common.jobs;
 
+import com.shopflow.tenancy.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -25,7 +26,8 @@ public class BackgroundJobs implements AutoCloseable {
 
     public void afterCommit(String name, Runnable job) {
         Map<String, String> mdc = MDC.getCopyOfContextMap();
-        Runnable wrapped = () -> {
+        // The job keeps the caller's tenant (and RLS scope), §0B.3.
+        Runnable wrapped = TenantContext.propagate(() -> {
             if (mdc != null) {
                 MDC.setContextMap(mdc);
             }
@@ -36,7 +38,7 @@ public class BackgroundJobs implements AutoCloseable {
             } finally {
                 MDC.clear();
             }
-        };
+        });
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

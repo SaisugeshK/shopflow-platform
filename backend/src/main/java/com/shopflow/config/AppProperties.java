@@ -20,7 +20,8 @@ public record AppProperties(
         WhatsApp whatsapp,
         EInvoice einvoice,
         Storage storage,
-        DevTools devTools) {
+        DevTools devTools,
+        Tenancy tenancy) {
 
     public record Business(UUID defaultBusinessId) {
     }
@@ -62,5 +63,16 @@ public record AppProperties(
     }
 
     public record DevTools(boolean enabled) {
+    }
+
+    /**
+     * Multi-tenancy (§0B). {@code superAdminMobiles}: numbers seeded as platform SUPER_ADMINs at startup.
+     * {@code defaultTenantCode}: tenant a new number registers into when it signs in without a join link
+     * (blank = a join link is required).
+     */
+    public record Tenancy(List<String> superAdminMobiles, String defaultTenantCode) {
+        public Tenancy {
+            superAdminMobiles = superAdminMobiles == null ? List.of() : List.copyOf(superAdminMobiles);
+        }
     }
 }

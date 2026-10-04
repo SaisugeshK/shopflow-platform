@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { router, Stack, useLocalSearchParams } from 'expo-router'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View } from 'react-native'
 import { z } from 'zod'
+import { defaultOptions, optionsBody, optionsFrom, ProductOptionsSection, type ProductOptionsValue } from '@/components/admin/ProductOptions'
 import { RequirePermission } from '@/components/admin/RequirePermission'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Data'
@@ -14,6 +15,7 @@ import { UNITS, useCategories, useTaxRates } from '@/features/catalog'
 import { useForm } from '@/hooks/useForm'
 import { api, ApiError } from '@/services/api'
 import type { Product } from '@/services/types'
+import { useModule } from '@/store/auth'
 
 const schema = z.object({
   sku: z.string().trim().refine((v) => !v || /^[A-Za-z0-9._-]{2,60}$/.test(v), 'Letters, digits, dot, dash or underscore'),
@@ -43,6 +45,8 @@ export default function ProductFormScreen() {
   const rates = useTaxRates()
   const existing = useQuery({ queryKey: ['product', id], queryFn: () => api.get<Product>(`/api/v1/products/${id}`), enabled: editing })
   const form = useForm(schema, EMPTY)
+  const uom = useModule('UOM_CONVERSIONS')
+  const [options, setOptions] = useState<ProductOptionsValue>(defaultOptions())
   const loaded = useRef(false)
   useEffect(() => {
     if (loaded.current) return
@@ -53,6 +57,7 @@ export default function ProductFormScreen() {
         purchasePrice: String(p.purchasePrice), sellingPrice: String(p.sellingPrice), mrp: p.mrp != null ? String(p.mrp) : '', gstRate: String(p.gstRate),
         minimumStock: String(p.minimumStock), openingStock: '0', featured: p.featured,
       })
+      setOptions(optionsFrom(p))
       loaded.current = true
     } else if (!editing && rates.data) {
       form.set('gstRate', String(rates.data.defaultGstRate))
@@ -65,7 +70,7 @@ export default function ProductFormScreen() {
       const body = {
         name: v.name, categoryId: v.categoryId, brand: v.brand || undefined, description: v.description || undefined, hsnCode: v.hsnCode || undefined,
         unit: v.unit, purchasePrice: v.purchasePrice, sellingPrice: v.sellingPrice, mrp: v.mrp || undefined, gstRate: v.gstRate,
-        minimumStock: v.minimumStock || '0', featured: v.featured,
+        minimumStock: v.minimumStock || '0', featured: v.featured, ...optionsBody(options, uom),
       }
       return editing ? api.patch<Product>(`/api/v1/products/${id}`, body) : api.post<Product>('/api/v1/products', { ...body, sku: v.sku || undefined, openingStock: v.openingStock || '0' })
     },
@@ -120,10 +125,11 @@ export default function ProductFormScreen() {
             <Field label="HSN code" error={fe('hsnCode')}><Input value={v.hsnCode} onChangeText={(t) => form.set('hsnCode', t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={8} accessibilityLabel="HSN code" /></Field>
           </View>
         </Card>
+        <ProductOptionsSection value={options} onChange={setOptions} baseUnit={v.unit} error={err} />
         <Card title="Stock">
           <View style={{ gap: 14 }}>
             <Field label="Minimum stock (low-stock alert)"><QtyInput value={v.minimumStock} onChangeText={(t) => form.set('minimumStock', t)} accessibilityLabel="Minimum stock" style={{ textAlign: 'left' }} /></Field>
-            {!editing && <Field label="Opening stock" hint="Posted as an OPENING stock movement"><QtyInput value={v.openingStock} onChangeText={(t) => form.set('openingStock', t)} accessibilityLabel="Opening stock" style={{ textAlign: 'left' }} /></Field>}
+            {!editing && !options.trackSerials && <Field label="Opening stock" hint="Posted as an OPENING stock movement"><QtyInput value={v.openingStock} onChangeText={(t) => form.set('openingStock', t)} accessibilityLabel="Opening stock" style={{ textAlign: 'left' }} /></Field>}
             <SwitchRow label="Featured in the customer catalogue" value={v.featured} onChange={(b) => form.set('featured', b)} />
           </View>
         </Card>

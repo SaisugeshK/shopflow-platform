@@ -38,6 +38,16 @@ public final class CurrentUser {
         return Optional.empty();
     }
 
+    /** The selection-token JWT (tenant picker after OTP), if the caller presented one. */
+    public static Optional<Jwt> selectionJwt() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken token
+                && JwtService.TYPE_SELECTION.equals(token.getToken().getClaimAsString(JwtService.CLAIM_TYPE))) {
+            return Optional.of(token.getToken());
+        }
+        return Optional.empty();
+    }
+
     public static Optional<UUID> idIfPresent() {
         return jwt().map(j -> UUID.fromString(j.getSubject()));
     }
@@ -75,6 +85,20 @@ public final class CurrentUser {
         return jwt().map(j -> j.getClaimAsString(JwtService.CLAIM_CUSTOMER_ID))
                 .map(UUID::fromString)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_FORBIDDEN, "Customer account required"));
+    }
+
+    /** True for a platform (SUPER_ADMIN) token, whose subject is a platform admin rather than a tenant user. */
+    public static boolean isPlatform() {
+        return jwt().map(j -> Boolean.TRUE.equals(j.getClaimAsBoolean(JwtService.CLAIM_PLATFORM))).orElse(false);
+    }
+
+    /** True for a Super Admin's read-only support token inside a tenant; its subject is the platform admin. */
+    public static boolean isSupport() {
+        return jwt().map(j -> Boolean.TRUE.equals(j.getClaimAsBoolean(JwtService.CLAIM_SUPPORT))).orElse(false);
+    }
+
+    public static boolean isSupplier() {
+        return Roles.SUPPLIER.equals(primaryRole());
     }
 
     public static Optional<UUID> sessionId() {

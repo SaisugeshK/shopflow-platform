@@ -116,6 +116,18 @@ public class Invoice extends BaseEntity {
     private Instant generatedAt;
     private UUID generatedBy;
     private Instant cancelledAt;
+    // Trade documents (§0B.9)
+    private UUID projectId;
+    private UUID agentId;
+    private BigDecimal commissionPercent;
+    private BigDecimal commissionAmount;
+    private Instant commissionPaidAt;
+    private String ewayBillNumber;
+    private Instant ewayBillDate;
+    private Instant ewayValidUntil;
+    private Integer ewayDistanceKm;
+    private boolean ewayTestOnly;
+    private UUID deliveryChallanId;
     private UUID cancelledBy;
     private String cancelReason;
     private UUID createdBy;
@@ -127,6 +139,13 @@ public class Invoice extends BaseEntity {
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceTaxSummary> taxSummaries = new ArrayList<>();
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("lineNumber")
+    private List<InvoiceCharge> charges = new ArrayList<>();
+
+    /** Charges including their GST (part of the grand total). */
+    private BigDecimal chargesTotal = BigDecimal.ZERO;
 
     public BigDecimal outstanding() {
         if (status == InvoiceStatus.DRAFT || status == InvoiceStatus.CANCELLED) {
@@ -157,7 +176,7 @@ public class Invoice extends BaseEntity {
         }
     }
 
-    public enum Source { ORDER, MANUAL }
+    public enum Source { ORDER, MANUAL, CHALLAN }
 
     public enum EInvoiceStatus { REAL_IRN, TEST_IRN, NOT_APPLICABLE, PENDING, FAILED }
 }

@@ -54,11 +54,12 @@ public class ProductController {
                                                    @RequestParam(required = false) UUID categoryId,
                                                    @RequestParam(required = false) Boolean active,
                                                    @RequestParam(required = false) Boolean featured,
+                                                   @RequestParam(required = false) Boolean sellable,
                                                    @RequestParam(required = false) Integer page,
                                                    @RequestParam(required = false) Integer pageSize,
                                                    @RequestParam(required = false) String sort) {
         var pageable = PageQuery.of(page, pageSize, sort, PageQuery.fields("name", "sku", "sellingPrice", "createdAt"), Sort.by("name"));
-        Page<Product> result = service.search(q, categoryId, active, featured, pageable);
+        Page<Product> result = service.search(q, categoryId, active, featured, Boolean.TRUE.equals(sellable), pageable);
         return ApiResponse.page(new PageImpl<>(service.toResponses(result.getContent()), pageable, result.getTotalElements()));
     }
 
@@ -82,6 +83,22 @@ public class ProductController {
     @Operation(summary = "Update a product", description = "Price changes affect new orders only; existing orders and invoices keep their snapshots.")
     public ApiResponse<ProductResponse> update(@PathVariable UUID id, @Valid @RequestBody UpdateProductRequest request) {
         return ApiResponse.ok(service.toResponse(service.update(id, request)));
+    }
+
+    @GetMapping("/{id}/variants")
+    @PreAuthorize("hasAuthority('PRODUCT_READ')")
+    @Operation(summary = "Variants of a group product")
+    public ApiResponse<List<ProductResponse>> variants(@PathVariable UUID id) {
+        return ApiResponse.ok(service.toResponses(service.variantsOf(id)));
+    }
+
+    @PostMapping("/{id}/variants")
+    @PreAuthorize("hasAuthority('PRODUCT_WRITE')")
+    @Operation(summary = "Generate variants",
+            description = "Makes the product a variant group and creates one product per combination of attribute values "
+                    + "(VARIANTS module). Existing combinations are kept. Errors: MODULE_DISABLED, VALIDATION_ERROR.")
+    public ApiResponse<List<ProductResponse>> generateVariants(@PathVariable UUID id, @Valid @RequestBody ProductDtos.GenerateVariantsRequest request) {
+        return ApiResponse.ok(service.toResponses(service.generateVariants(id, request)), "Variants created");
     }
 
     @PostMapping("/{id}/activate")

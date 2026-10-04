@@ -65,7 +65,10 @@ export function RegisterPage() {
         <div className="card-body stack" style={{ padding: 28 }}>
           <div>
             <h2>Register your shop</h2>
-            <p className="muted small">Mobile {reg.mobile} is verified. Your account will be reviewed by the shop before you can order.</p>
+            <p className="muted small">
+              Mobile {reg.mobile} is verified.{reg.business ? <> You are registering with <strong>{reg.business.name}</strong>.</> : null} Your account
+              will be reviewed by the shop before you can order.
+            </p>
           </div>
           <form className="form-grid" onSubmit={form.handleSubmit((v) => submit.mutate(v))} noValidate>
             <Field label="Shop / business name" htmlFor="shopName" error={e.shopName?.message} required>

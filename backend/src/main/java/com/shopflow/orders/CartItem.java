@@ -32,6 +32,9 @@ public class CartItem {
     private UUID productId;
     @Column(nullable = false)
     private BigDecimal quantity;
+    /** Unit the customer ordered in; null = the product's base unit. */
+    private String unit;
+    private BigDecimal unitFactor = BigDecimal.ONE;
     @Column(nullable = false)
     private Instant createdAt;
     @Column(nullable = false)

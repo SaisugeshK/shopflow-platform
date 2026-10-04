@@ -25,6 +25,9 @@ import java.util.UUID;
 @Setter
 public class Order extends BaseEntity {
 
+    /** Project / site of a contractor customer (§0B.9). */
+    private UUID projectId;
+
     @Column(nullable = false)
     private UUID businessId;
     @Column(nullable = false)

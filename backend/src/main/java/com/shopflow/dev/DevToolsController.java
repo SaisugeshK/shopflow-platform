@@ -15,6 +15,7 @@ import com.shopflow.payments.PaymentWebhookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
+import com.shopflow.tenancy.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -71,7 +72,9 @@ public class DevToolsController {
     @Operation(summary = "Simulate the mock payment checkout outcome", description = "Outcomes: SUCCESS, FAILED, PENDING, CANCELLED, TIMEOUT, DUPLICATE_WEBHOOK, OUT_OF_ORDER, "
             + "INVALID_SIGNATURE, PARTIAL. Signed webhooks go through the same verification pipeline as a real provider.")
     public ApiResponse<SimulationResult> simulatePayment(@PathVariable UUID paymentId, @RequestBody SimulateRequest request) {
-        Payment p = payments.findById(paymentId).orElseThrow(() -> BusinessException.notFound(ErrorCode.PAYMENT_NOT_FOUND, "Payment"));
+        // Public dev endpoint (no tenant token): look the payment up with platform access; the webhook pipeline then
+        // re-enters the payment's tenant itself.
+        Payment p = TenantContext.callAsPlatform(() -> payments.findById(paymentId)).orElseThrow(() -> BusinessException.notFound(ErrorCode.PAYMENT_NOT_FOUND, "Payment"));
         if (p.getProviderOrderId() == null) {
             throw BusinessException.validation("paymentId", "Not an online payment");
         }
@@ -90,7 +93,7 @@ public class DevToolsController {
     @PostMapping("/whatsapp/{messageId}/status")
     @Operation(summary = "Simulate a WhatsApp delivery-status callback", description = "status: DELIVERED, READ or FAILED.")
     public ApiResponse<Map<String, Integer>> whatsAppStatus(@PathVariable UUID messageId, @RequestBody WhatsAppStatusRequest request) {
-        WhatsAppMessage m = messages.findById(messageId).orElseThrow(() -> BusinessException.notFound(ErrorCode.RESOURCE_NOT_FOUND, "Message"));
+        WhatsAppMessage m = TenantContext.callAsPlatform(() -> messages.findById(messageId)).orElseThrow(() -> BusinessException.notFound(ErrorCode.RESOURCE_NOT_FOUND, "Message"));
         if (m.getProviderMessageId() == null) {
             throw BusinessException.validation("messageId", "Message has not been sent yet");
         }

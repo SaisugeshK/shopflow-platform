@@ -1,8 +1,10 @@
 package com.shopflow.support;
 
+import com.shopflow.tenancy.TenantAwareDataSource;
 import org.springframework.boot.test.context.TestComponent;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -22,10 +24,36 @@ public class TestData {
     public static final UUID CUSTOMER_ROLE = UUID.fromString("00000000-0000-0000-0001-000000000003");
 
     private final JdbcTemplate jdbc;
+    private final JdbcTemplate tenantJdbc;
 
-    public TestData(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    /** Fixtures are written with platform access: they create rows for any tenant, bypassing the RLS tenant scope. */
+    public TestData(DataSource dataSource) {
+        this.jdbc = new JdbcTemplate(dataSource instanceof TenantAwareDataSource t ? t.platformView() : dataSource);
+        this.tenantJdbc = new JdbcTemplate(dataSource);
     }
+
+    /** Runs SQL exactly as the application does: under the current {@link com.shopflow.tenancy.TenantContext}. */
+    public JdbcTemplate tenantJdbc() {
+        return tenantJdbc;
+    }
+
+    /** Makes {@code mobile} a platform SUPER_ADMIN. */
+    public UUID platformAdmin(String mobile) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO platform_admins (id, mobile_number, full_name, status, created_at, updated_at) VALUES (?,?,?,'ACTIVE',?,?)",
+                id, mobile, "Test Super Admin", now(), now());
+        return id;
+    }
+
+    /** A user (membership) of {@code mobile} in another tenant. */
+    public UUID member(UUID businessId, String mobile, String name, UUID role) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO users (id, business_id, mobile_number, full_name, status, created_at, updated_at) VALUES (?,?,?,?,'ACTIVE',?,?)",
+                id, businessId, mobile, name, now(), now());
+        jdbc.update("INSERT INTO user_roles (user_id, role_id) VALUES (?,?)", id, role);
+        return id;
+    }
+
 
     /** A random valid Indian mobile that avoids the mock providers' failure suffixes. */
     public static String mobile() {

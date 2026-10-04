@@ -5,6 +5,7 @@ import com.shopflow.common.error.ErrorCode;
 import com.shopflow.common.util.Hashing;
 import com.shopflow.integrations.storage.StorageProvider;
 import com.shopflow.security.CurrentUser;
+import com.shopflow.tenancy.TenantContext;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +34,10 @@ public class FileService {
     private final StoredFileRepository repository;
     private final StorageProvider storage;
 
-    public FileService(StoredFileRepository repository, StorageProvider storage) {
+    private final com.shopflow.saas.PlanLimits limits;
+
+    public FileService(StoredFileRepository repository, StorageProvider storage, com.shopflow.saas.PlanLimits limits) {
+        this.limits = limits;
         this.repository = repository;
         this.storage = storage;
     }
@@ -44,6 +48,7 @@ public class FileService {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "File is empty");
         }
+        limits.checkStorage(file.getSize());
         if (file.getSize() > MAX_IMAGE_BYTES) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "Image must be 5 MB or smaller");
         }
@@ -65,9 +70,46 @@ public class FileService {
         return store(bytes, detected, sanitizeName(file.getOriginalFilename()), purpose, ext);
     }
 
+    /** A PDF or an image (quotation, supplier invoice), up to 10 MB; the type is checked by its magic bytes. */
+    @Transactional
+    public StoredFile storeDocument(MultipartFile file, String purpose) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.FILE_INVALID, "File is empty");
+        }
+        limits.checkStorage(file.getSize());
+        if (file.getSize() > 2 * MAX_IMAGE_BYTES) {
+            throw new BusinessException(ErrorCode.FILE_INVALID, "The file must be 10 MB or smaller");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        boolean pdf = bytes.length > 4 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F';
+        if (pdf) {
+            return store(bytes, "application/pdf", sanitizeName(file.getOriginalFilename()), purpose, "pdf");
+        }
+        String detected = detectImageType(bytes);
+        if (detected == null) {
+            throw new BusinessException(ErrorCode.FILE_INVALID, "Only PDF, PNG, JPEG or WebP files are allowed");
+        }
+        String ext = switch (detected) {
+            case "image/png" -> "png";
+            case "image/jpeg" -> "jpg";
+            default -> "webp";
+        };
+        return store(bytes, detected, sanitizeName(file.getOriginalFilename()), purpose, ext);
+    }
+
     @Transactional
     public StoredFile storeGenerated(byte[] bytes, String contentType, String name, String purpose, String ext) {
         return store(bytes, contentType, name, purpose, ext);
+    }
+
+    /** Looks a file up in any tenant: only for the public image endpoint, which serves non-sensitive purposes. */
+    public StoredFile getPublic(UUID id) {
+        return TenantContext.callAsPlatform(() -> get(id));
     }
 
     public StoredFile get(UUID id) {
@@ -88,7 +130,9 @@ public class FileService {
 
     private StoredFile store(byte[] bytes, String contentType, String name, String purpose, String ext) {
         UUID id = UUID.randomUUID();
-        String key = purpose.toLowerCase() + "/" + id + "." + ext;
+        // Object keys are grouped per tenant (§0B.3); files of a platform action (no tenant) go under "platform/".
+        String prefix = TenantContext.tenantId().map(t -> "tenants/" + t + "/").orElse("platform/");
+        String key = prefix + purpose.toLowerCase() + "/" + id + "." + ext;
         storage.put(key, bytes, contentType);
         StoredFile stored = new StoredFile(id, key, name, contentType, bytes.length, Hashing.sha256Hex(bytes), purpose,
                 CurrentUser.idIfPresent().orElse(null));

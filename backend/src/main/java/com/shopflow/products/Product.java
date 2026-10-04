@@ -49,5 +49,38 @@ public class Product extends BaseEntity {
     private UUID createdBy;
     private UUID updatedBy;
 
-    public enum Unit { PCS, BOX, PACK, KG, G, L, ML, M, DOZEN, SET, CARTON, BAG }
+    // Industry options (§0B.7). Each is used only when the tenant has the matching module.
+    private String barcode;
+    /** Quantities may have up to 3 decimals (metres, kg, litres); otherwise whole numbers only. */
+    @Column(nullable = false)
+    private boolean decimalQuantity;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PricingMode pricingMode = PricingMode.FIXED;
+    private BigDecimal mrpDiscountPercent;
+    @Column(nullable = false)
+    private boolean trackBatches;
+    @Column(nullable = false)
+    private boolean trackSerials;
+    private Integer warrantyMonths;
+    /** A variant group is a template (e.g. "Cotton shirt") that is not sold itself; its variants are. */
+    @Column(nullable = false)
+    private boolean variantGroup;
+    private UUID parentId;
+    /** "Size: M · Colour: Blue" for a variant. */
+    private String variantAttributes;
+
+    public enum Unit {
+        PCS, BOX, PACK, KG, G, L, ML, M, DOZEN, SET, CARTON, BAG,
+        NOS, PAIR, CASE, TONNE, QUINTAL, ROLL, COIL, REAM, BUNDLE, SQFT, CFT, LOAD, CM;
+
+        /** Units that are naturally measured in fractions. */
+        public boolean fractional() {
+            return this == KG || this == G || this == L || this == ML || this == M || this == TONNE || this == QUINTAL
+                    || this == SQFT || this == CFT || this == CM;
+        }
+    }
+
+    /** FIXED: price as entered. MRP: MRP less a discount. DAILY_RATE: today's rate from the rate list. */
+    public enum PricingMode { FIXED, MRP, DAILY_RATE }
 }

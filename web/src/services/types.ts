@@ -57,6 +57,7 @@ export interface CustomerSummary {
 }
 
 export interface CustomerDetail {
+  agentId?: string
   id: string
   customerCode: string
   shopName: string
@@ -125,6 +126,27 @@ export interface Product {
   images: ProductImage[]
   createdAt: string
   updatedAt: string
+  // Industry options (§0B.7)
+  barcode?: string
+  decimalQuantity: boolean
+  pricingMode: PricingMode
+  mrpDiscountPercent?: number
+  trackBatches: boolean
+  trackSerials: boolean
+  warrantyMonths?: number
+  variantGroup: boolean
+  parentId?: string
+  variantAttributes?: string
+  units: UnitOption[]
+}
+
+export type PricingMode = 'FIXED' | 'MRP' | 'DAILY_RATE'
+
+/** 1 unit = factor × the product's base unit. */
+export interface UnitOption {
+  unit: string
+  factor: number
+  barcode?: string
 }
 
 export interface CatalogProduct {
@@ -146,6 +168,10 @@ export interface CatalogProduct {
   featured: boolean
   imageUrl?: string
   images: string[]
+  decimalQuantity: boolean
+  units: { unit: string; factor: number; price: number }[]
+  parentId?: string
+  variantAttributes?: string
 }
 
 export interface Category {
@@ -234,6 +260,11 @@ export interface PurchaseItem {
   igstAmount: number
   lineTotal: number
   returnedQuantity: number
+  unitFactor: number
+  batchNumber?: string
+  mfgDate?: string
+  expiryDate?: string
+  serialNumbers: string[]
 }
 
 export interface Purchase {
@@ -301,6 +332,9 @@ export interface CartLine {
   lineTotal: number
   stockStatus: StockStatus
   issue?: string
+  unitFactor: number
+  schemeName?: string
+  freeQuantity?: number
 }
 
 export interface Cart {
@@ -352,6 +386,9 @@ export interface OrderItem {
   taxableAmount: number
   taxAmount: number
   lineTotal: number
+  unitFactor: number
+  freeItem: boolean
+  schemeName?: string
 }
 
 export interface Order {
@@ -433,13 +470,31 @@ export interface InvoiceItem {
   igstAmount: number
   lineTotal: number
   returnedQuantity: number
+  unitFactor: number
+  freeItem: boolean
+  schemeName?: string
+  serialNumbers: string[]
+  batchDetails?: string
+}
+
+export interface InvoiceCharge {
+  id: string
+  type: string
+  description: string
+  sacCode?: string
+  amount: number
+  taxRate: number
+  cgstAmount: number
+  sgstAmount: number
+  igstAmount: number
+  total: number
 }
 
 export interface Invoice {
   id: string
   invoiceNumber?: string
   invoiceType: string
-  source: 'ORDER' | 'MANUAL'
+  source: 'ORDER' | 'MANUAL' | 'CHALLAN'
   status: InvoiceStatus
   customerId: string
   orderId?: string
@@ -479,6 +534,256 @@ export interface Invoice {
   taxSummary?: { hsnCode?: string; taxRate: number; taxableAmount: number; cgstAmount: number; sgstAmount: number; igstAmount: number; totalTax: number }[]
   creditNotes?: { id: string; creditNoteNumber: string; noteDate: string; reasonType: string; reason: string; taxableTotal: number; taxTotal: number; grandTotal: number }[]
   createdAt: string
+  charges?: InvoiceCharge[]
+  chargesTotal: number
+  /** Project, agent commission (staff only), e-way bill and delivery challan (§0B.9). */
+  trade?: InvoiceTradeInfo | null
+}
+
+export interface InvoiceTradeInfo {
+  projectId?: string
+  projectName?: string
+  agentId?: string
+  agentName?: string
+  commissionPercent?: number
+  commissionAmount?: number
+  commissionPaidAt?: string
+  ewayBillNumber?: string
+  ewayBillDate?: string
+  ewayValidUntil?: string
+  ewayDistanceKm?: number
+  ewayTestOnly: boolean
+  deliveryChallanId?: string
+  challanNumber?: string
+}
+
+// ---------------------------------------------------------------- trade documents (§0B.9)
+
+export interface QuotationItem {
+  id: string
+  lineNumber: number
+  productId: string
+  productName: string
+  hsnCode?: string
+  unit: string
+  unitFactor: number
+  quantity: number
+  rate: number
+  discountPercent: number
+  taxRate: number
+  taxableAmount: number
+  taxAmount: number
+  lineTotal: number
+}
+
+export type QuotationStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED' | 'CANCELLED'
+
+export interface Quotation {
+  id: string
+  quotationNumber: string
+  customerId: string
+  customerName: string
+  projectId?: string
+  projectName?: string
+  status: QuotationStatus
+  quoteDate: string
+  validUntil?: string
+  notes?: string
+  interState: boolean
+  subtotal: number
+  discountTotal: number
+  taxableTotal: number
+  taxTotal: number
+  grandTotal: number
+  orderId?: string
+  orderNumber?: string
+  sentAt?: string
+  decidedAt?: string
+  decisionNote?: string
+  createdAt: string
+  items?: QuotationItem[] | null
+}
+
+export interface ChallanItem {
+  id: string
+  lineNumber: number
+  productId: string
+  productName: string
+  hsnCode?: string
+  unit: string
+  unitFactor: number
+  quantity: number
+  rate: number
+  taxRate: number
+  batchDetails?: string
+  serialNumbers: string[]
+}
+
+export interface DeliveryChallan {
+  id: string
+  challanNumber: string
+  customerId: string
+  customerName: string
+  projectId?: string
+  projectName?: string
+  challanDate: string
+  status: 'ISSUED' | 'INVOICED' | 'CANCELLED'
+  purpose: 'SUPPLY' | 'APPROVAL' | 'JOB_WORK' | 'OTHER'
+  vehicleNumber?: string
+  transport?: string
+  destination?: string
+  notes?: string
+  totalValue: number
+  invoiceId?: string
+  invoiceNumber?: string
+  cancelReason?: string
+  createdAt: string
+  items?: ChallanItem[] | null
+}
+
+export interface JobWorkLine {
+  id: string
+  direction: 'ISSUE' | 'RECEIVE'
+  productId: string
+  productName: string
+  unit: string
+  quantity: number
+  returnedQuantity: number
+  consumedQuantity: number
+  pendingQuantity: number
+  lineDate: string
+}
+
+export interface JobWork {
+  id: string
+  jobNumber: string
+  supplierId?: string
+  jobWorkerName: string
+  process: string
+  issueDate: string
+  expectedDate?: string
+  status: 'OPEN' | 'PARTIAL' | 'CLOSED' | 'CANCELLED'
+  notes?: string
+  charges: number
+  createdAt: string
+  lines?: JobWorkLine[] | null
+}
+
+export interface Agent {
+  id: string
+  name: string
+  mobileNumber?: string
+  commissionPercent: number
+  active: boolean
+  customerCount: number
+  pendingCommission: number
+  paidCommission: number
+}
+
+export interface CommissionRow {
+  invoiceId: string
+  invoiceNumber: string
+  invoiceDate: string
+  invoiceStatus: string
+  customerId: string
+  customerName: string
+  agentId: string
+  agentName: string
+  taxableTotal: number
+  commissionPercent: number
+  commissionAmount: number
+  paidAt?: string
+}
+
+export interface CommissionReport {
+  rows: CommissionRow[]
+  pending: number
+  paid: number
+}
+
+export interface Project {
+  id: string
+  customerId: string
+  customerName: string
+  name: string
+  siteAddress?: string
+  budget?: number
+  status: 'ACTIVE' | 'CLOSED'
+  billed: number
+  received: number
+  outstanding: number
+  invoiceCount: number
+  createdAt: string
+}
+
+export interface ProjectStatement {
+  project: Project
+  lines: { type: 'INVOICE' | 'ORDER' | 'CHALLAN' | 'QUOTATION'; id: string; number: string; date?: string; status: string; amount: number; outstanding?: number }[]
+}
+
+export interface BatchRow {
+  id: string
+  productId: string
+  productName: string
+  sku: string
+  unit: string
+  batchNumber: string
+  mfgDate?: string
+  expiryDate?: string
+  onHand: number
+  daysToExpiry?: number
+  status: 'OK' | 'NEAR_EXPIRY' | 'EXPIRED' | 'EMPTY'
+}
+
+export interface SerialRow {
+  id: string
+  productId: string
+  productName: string
+  serialNumber: string
+  status: 'IN_STOCK' | 'SOLD' | 'RETURNED_TO_SUPPLIER' | 'REMOVED'
+  purchaseId?: string
+  purchaseNumber?: string
+  invoiceId?: string
+  invoiceNumber?: string
+  orderId?: string
+  orderNumber?: string
+  customerId?: string
+  customerName?: string
+  soldAt?: string
+  warrantyUntil?: string
+  underWarranty: boolean
+}
+
+export interface Scheme {
+  id: string
+  name: string
+  schemeType: 'BUY_X_GET_Y' | 'QUANTITY_SLAB' | 'VALUE_SLAB'
+  productId?: string
+  productName?: string
+  categoryId?: string
+  categoryName?: string
+  buyQuantity?: number
+  freeQuantity?: number
+  minQuantity?: number
+  minValue?: number
+  discountPercent?: number
+  validFrom?: string
+  validTo?: string
+  active: boolean
+  summary: string
+  createdAt: string
+}
+
+export interface RateRow {
+  productId: string
+  sku: string
+  name: string
+  unit: string
+  currentPrice: number
+  rate?: number
+  rateDate?: string
+  previousRate?: number
+  previousDate?: string
 }
 
 export interface WhatsAppMessage {
@@ -618,4 +923,212 @@ export interface BusinessProfile {
   financialYearStartMonth: number
   termsAndConditions?: string
   authorizedSignatory?: string
+}
+
+// ---------------------------------------------------------------- purchase orders & supplier portal (§0B.8)
+
+export type PoStatus = 'DRAFT' | 'SENT' | 'QUOTED' | 'COUNTERED' | 'ACCEPTED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CLOSED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED'
+
+export interface PoLine {
+  id: string
+  lineNumber: number
+  productId?: string
+  description: string
+  sku?: string
+  hsnCode?: string
+  unit: string
+  unitFactor: number
+  quantity: number
+  rate: number
+  discountPercent: number
+  taxRate: number
+  taxableAmount: number
+  taxAmount: number
+  lineTotal: number
+  availability: 'AVAILABLE' | 'PARTIAL' | 'UNAVAILABLE'
+  deliveryDate?: string
+  lineNote?: string
+  substituteNote?: string
+  addedBy: 'BUSINESS' | 'SUPPLIER'
+  status: 'OPEN' | 'ACCEPTED' | 'REJECTED'
+  receivedQuantity: number
+  pendingQuantity: number
+  trackBatches: boolean
+  trackSerials: boolean
+}
+
+export interface PoSnapshotLine {
+  lineId: string
+  lineNumber: number
+  description: string
+  unit: string
+  quantity: number
+  rate: number
+  discountPercent: number
+  taxRate: number
+  lineTotal: number
+  availability: string
+  deliveryDate?: string
+  note?: string
+  substituteNote?: string
+  addedBy: string
+  status: string
+}
+
+export interface PoRevision {
+  id: string
+  revision: number
+  actorType: 'BUSINESS' | 'SUPPLIER' | 'SYSTEM'
+  actorName?: string
+  action: string
+  note?: string
+  grandTotal: number
+  createdAt: string
+  snapshot?: { status: string; expectedDate?: string; quoteValidUntil?: string; supplierNote?: string; grandTotal: number; lines: PoSnapshotLine[] }
+}
+
+export interface PoAttachment {
+  id: string
+  fileName?: string
+  uploadedByType: 'BUSINESS' | 'SUPPLIER'
+  createdAt: string
+}
+
+export interface GoodsReceipt {
+  id: string
+  grnNumber: string
+  purchaseOrderId: string
+  poNumber: string
+  receiptDate: string
+  supplierInvoiceNumber?: string
+  supplierInvoiceDate?: string
+  purchaseId?: string
+  purchaseNumber?: string
+  hasMismatch: boolean
+  notes?: string
+  createdAt: string
+  lines: { id: string; poLineId: string; description: string; receivedQuantity: number; damagedQuantity: number; rate: number; batchNumber?: string; expiryDate?: string; serialNumbers: string[]; mismatchNote?: string }[]
+}
+
+export interface PurchaseOrder {
+  id: string
+  poNumber: string
+  supplierId: string
+  supplierName: string
+  supplierCode: string
+  supplierHasPortal: boolean
+  status: PoStatus
+  orderDate: string
+  expectedDate?: string
+  quoteValidUntil?: string
+  notes?: string
+  supplierNote?: string
+  interState: boolean
+  revision: number
+  subtotal: number
+  taxableTotal: number
+  taxTotal: number
+  grandTotal: number
+  sentAt?: string
+  quotedAt?: string
+  acceptedAt?: string
+  closedAt?: string
+  cancelReason?: string
+  createdAt: string
+  updatedAt: string
+  lines?: PoLine[]
+  revisions?: PoRevision[]
+  attachments?: PoAttachment[]
+  receipts?: GoodsReceipt[]
+  businessName: string
+}
+
+export interface PortalAccess {
+  supplierId: string
+  enabled: boolean
+  mobileNumber?: string
+  userStatus?: string
+  lastLoginAt?: string
+}
+
+// ---------------------------------------------------------------- SaaS: plans, sign-ups, branches (§0B.14)
+
+/** A plan; missing limits are unlimited. */
+export interface Plan {
+  code: string
+  name: string
+  description?: string
+  priceMonthly?: number
+  maxStaff?: number
+  maxProducts?: number
+  maxCustomers?: number
+  maxInvoicesPerMonth?: number
+  maxBranches?: number
+  maxStorageMb?: number
+  active: boolean
+}
+
+export interface Subscription {
+  plan: Plan
+  usage: { staff: number; products: number; customers: number; invoicesThisMonth: number; branches: number; storageMb: number }
+  planChangedAt?: string
+}
+
+export interface Signup {
+  id: string
+  businessName: string
+  legalName?: string
+  ownerName: string
+  ownerMobile: string
+  email?: string
+  state: string
+  stateCode: string
+  city?: string
+  gstin?: string
+  industry: string
+  planCode: string
+  message?: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  decisionReason?: string
+  businessId?: string
+  tenantCode?: string
+  decidedAt?: string
+  createdAt: string
+}
+
+export interface Branch {
+  id: string
+  code: string
+  name: string
+  kind: 'BRANCH' | 'WAREHOUSE'
+  addressLine1?: string
+  city?: string
+  state?: string
+  stateCode?: string
+  phone?: string
+  isDefault: boolean
+  active: boolean
+  productsInStock: number
+}
+
+export interface BranchStockRow {
+  productId: string
+  productName: string
+  sku: string
+  unit: string
+  onHand: number
+  totalOnHand: number
+}
+
+export interface StockTransfer {
+  id: string
+  transferNumber: string
+  fromBranchId: string
+  fromBranchName: string
+  toBranchId: string
+  toBranchName: string
+  transferDate: string
+  notes?: string
+  createdAt: string
+  items?: { productId: string; productName: string; unit: string; quantity: number; batchDetails?: string }[] | null
 }

@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { useBranchStore } from '@/stores/branch'
 
 /** Standard response envelope (APPLICATION-ARCHITECTURE.md §50). */
 export interface ApiEnvelope<T> {
@@ -71,6 +72,8 @@ export async function refreshSession(): Promise<boolean> {
           body: '{}',
         })
         if (!res.ok) {
+          // Drain the error body so the request completes (an unread body keeps the connection open).
+          await res.text().catch(() => '')
           useAuthStore.getState().clear()
           return false
         }
@@ -99,6 +102,8 @@ interface RequestOptions {
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<ApiEnvelope<T>> {
   const token = useAuthStore.getState().accessToken
   const headers: Record<string, string> = { 'X-Client-Type': 'web', ...(opts.headers ?? {}) }
+  const branchId = useBranchStore.getState().branchId
+  if (branchId && !headers['X-Branch-Id']) headers['X-Branch-Id'] = branchId
   let body: BodyInit | undefined
   if (opts.body instanceof FormData) {
     body = opts.body
@@ -210,14 +215,40 @@ export interface CustomerInfo {
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'BLOCKED'
 }
 
+/** A business (tenant) the signed-in mobile number belongs to, or the Super Admin console (platform). */
+export interface TenantChoice {
+  businessId?: string
+  name: string
+  logoUrl?: string
+  tenantCode?: string
+  role: string
+  platform: boolean
+}
+
+export interface BusinessInfo {
+  id: string
+  name: string
+  logoUrl?: string
+}
+
 export interface Me {
   id: string
   fullName: string
   mobileNumber: string
   email?: string
-  role: 'OWNER' | 'ADMIN' | 'CUSTOMER'
+  role: 'OWNER' | 'ADMIN' | 'CUSTOMER' | 'SUPPLIER' | 'SUPER_ADMIN'
   permissions: string[]
   customer?: CustomerInfo
+  /** The business this session belongs to (tenant branding); absent for the Super Admin console. */
+  business?: BusinessInfo
+  /** Everywhere this number can switch to: its businesses, plus the console for a platform admin. */
+  memberships?: TenantChoice[]
+  /** Module codes enabled for the business (§0B.6); menus of other modules are hidden. */
+  modules?: string[]
+  /** A Super Admin's read-only support view of the business. */
+  support?: boolean
+  /** The supplier behind a SUPPLIER login (supplier portal). */
+  supplier?: { id: string; supplierCode: string; name: string }
 }
 
 export interface AuthResponse {
@@ -225,5 +256,11 @@ export interface AuthResponse {
   accessToken?: string
   accessTokenExpiresAt?: string
   registrationToken?: string
+  /** The business a new number registers into (join link or default). */
+  registrationBusiness?: BusinessInfo
   user?: Me
+  /** The number belongs to several businesses: pick one with the selection token. */
+  selectionRequired?: boolean
+  selectionToken?: string
+  tenants?: TenantChoice[]
 }

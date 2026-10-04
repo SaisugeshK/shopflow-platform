@@ -45,6 +45,8 @@ const STATUS_TONES: Record<string, Tone> = {
   COMPLETED: 'success', PAID: 'success', CAPTURED: 'success', ACTIVE: 'success', IN_STOCK: 'success',
   CANCELLED: 'danger', REJECTED: 'danger', FAILED: 'danger', DELIVERY_FAILED: 'danger', BLOCKED: 'danger', OUT_OF_STOCK: 'danger',
   CREDIT: 'warning', PARTIALLY_PAID: 'warning', LOW_STOCK: 'warning', REFUNDED: 'neutral', INACTIVE: 'neutral', NOT_REQUIRED: 'neutral',
+  QUOTED: 'warning', COUNTERED: 'purple', PARTIALLY_RECEIVED: 'teal', RECEIVED: 'success', CLOSED: 'neutral', EXPIRED: 'neutral', OPEN: 'neutral',
+  ISSUED: 'accent', INVOICED: 'success', CONVERTED: 'success', PARTIAL: 'teal',
 }
 
 /** Same status colours as the web app. */

@@ -25,7 +25,21 @@ public final class InvoiceDtos {
                                      @DecimalMin("0") @Digits(integer = 12, fraction = 2) BigDecimal rate,
                                      @DecimalMin("0") @DecimalMax("100") BigDecimal discountPercent,
                                      @DecimalMin("0") BigDecimal discountAmount,
-                                     @Size(max = 500) String description) {
+                                     @Size(max = 500) String description,
+                                     @Size(max = 20) String unit,
+                                     @Size(max = 60) String batchNumber,
+                                     @Size(max = 500) List<@Size(max = 80) String> serialNumbers) {
+    }
+
+    /** An invoice-level charge such as transport or loading (CHARGES module). */
+    public record ChargeRequest(@NotNull InvoiceCharge.Type type, @Size(max = 200) String description,
+                                @NotNull @DecimalMin("0.01") @Digits(integer = 12, fraction = 2) BigDecimal amount,
+                                @DecimalMin("0") @DecimalMax("100") BigDecimal taxRate) {
+    }
+
+    public record ChargeResponse(UUID id, String type, String description, String sacCode, BigDecimal amount,
+                                 BigDecimal taxRate, BigDecimal cgstAmount, BigDecimal sgstAmount, BigDecimal igstAmount,
+                                 BigDecimal total) {
     }
 
     /**
@@ -46,7 +60,23 @@ public final class InvoiceDtos {
                                        @Size(max = 20) String vehicleNumber,
                                        @Size(max = 200) String destination,
                                        @Size(max = 1000) String notes,
-                                       Boolean generate) {
+                                       Boolean generate,
+                                       @Size(max = 10) List<@Valid ChargeRequest> charges,
+                                       UUID projectId) {
+        public CreateInvoiceRequest(UUID orderId, UUID customerId, PaymentMethod paymentType, LocalDate invoiceDate,
+                                    List<InvoiceLineRequest> items, String paymentTerms, String buyerOrderNumber,
+                                    String deliveryNote, String dispatchDocument, String transport, String vehicleNumber,
+                                    String destination, String notes, Boolean generate, List<ChargeRequest> charges) {
+            this(orderId, customerId, paymentType, invoiceDate, items, paymentTerms, buyerOrderNumber, deliveryNote,
+                    dispatchDocument, transport, vehicleNumber, destination, notes, generate, charges, null);
+        }
+    }
+
+    /** Project, agent commission, e-way bill and delivery challan of an invoice (§0B.9). */
+    public record InvoiceTradeInfo(UUID projectId, String projectName, UUID agentId, String agentName, BigDecimal commissionPercent,
+                                   BigDecimal commissionAmount, Instant commissionPaidAt, String ewayBillNumber, Instant ewayBillDate,
+                                   Instant ewayValidUntil, Integer ewayDistanceKm, boolean ewayTestOnly, UUID deliveryChallanId,
+                                   String challanNumber) {
     }
 
     public record CancelInvoiceRequest(@NotBlank @Size(max = 500) String reason) {
@@ -65,7 +95,9 @@ public final class InvoiceDtos {
                                       String sku, String hsnCode, String unit, BigDecimal quantity, BigDecimal rate,
                                       BigDecimal discountPercent, BigDecimal discountAmount, BigDecimal taxRate,
                                       BigDecimal taxableAmount, BigDecimal cgstAmount, BigDecimal sgstAmount,
-                                      BigDecimal igstAmount, BigDecimal lineTotal, BigDecimal returnedQuantity) {
+                                      BigDecimal igstAmount, BigDecimal lineTotal, BigDecimal returnedQuantity,
+                                      BigDecimal unitFactor, boolean freeItem, String schemeName, List<String> serialNumbers,
+                                      String batchDetails) {
     }
 
     public record TaxSummaryResponse(String hsnCode, BigDecimal taxRate, BigDecimal taxableAmount, BigDecimal cgstAmount,
@@ -93,6 +125,7 @@ public final class InvoiceDtos {
                                   String einvoiceStatus, String irn, String ackNumber, boolean overdue,
                                   Instant generatedAt, Instant sentAt, String cancelReason,
                                   List<InvoiceItemResponse> items, List<TaxSummaryResponse> taxSummary,
-                                  List<CreditNoteResponse> creditNotes, Instant createdAt) {
+                                  List<CreditNoteResponse> creditNotes, Instant createdAt,
+                                  List<ChargeResponse> charges, BigDecimal chargesTotal, InvoiceTradeInfo trade) {
     }
 }

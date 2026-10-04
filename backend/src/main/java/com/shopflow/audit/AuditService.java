@@ -2,6 +2,7 @@ package com.shopflow.audit;
 
 import com.shopflow.common.web.RequestContext;
 import com.shopflow.security.CurrentUser;
+import com.shopflow.tenancy.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,9 +47,15 @@ public class AuditService {
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordAs(UUID actorUserId, String actorRole, AuditAction action, String entityType, UUID entityId,
                          Object oldValue, Object newValue) {
-        repository.save(new AuditLog(actorUserId, actorRole, action, entityType, entityId,
+        AuditLog entry = new AuditLog(actorUserId, actorRole, action, entityType, entityId,
                 toJson(oldValue), toJson(newValue), RequestContext.clientIp(), RequestContext.userAgent(),
-                RequestContext.requestId()));
+                RequestContext.requestId());
+        if (TenantContext.tenantId().isEmpty() && !TenantContext.isPlatform()) {
+            // Outside any tenant (e.g. a failed sign-in): a platform-level entry with no business_id.
+            TenantContext.runAsPlatform(() -> repository.saveAndFlush(entry));
+        } else {
+            repository.save(entry);
+        }
     }
 
     /** Audit that must survive a rollback of the surrounding business transaction (e.g. failed logins). */

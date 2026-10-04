@@ -44,6 +44,8 @@ public class StockMovement {
     @Column(nullable = false)
     private Instant createdAt;
     private UUID createdBy;
+    /** Branch / warehouse the stock moved at (§0B.14); null = the default (main) branch. */
+    private UUID branchId;
 
     StockMovement(UUID productId, MovementType type, BigDecimal quantity, BigDecimal unitCost, BigDecimal balanceAfter,
                   String referenceType, UUID referenceId, String referenceNumber, String reason, UUID createdBy) {
@@ -62,9 +64,15 @@ public class StockMovement {
         this.createdBy = createdBy;
     }
 
+    void atBranch(UUID branchId) {
+        this.branchId = branchId;
+    }
+
     public enum MovementType {
         OPENING(true), PURCHASE_IN(true), SALE_OUT(false), SALES_RETURN_IN(true), PURCHASE_RETURN_OUT(false),
-        DAMAGE_OUT(false), LOSS_OUT(false), ADJUSTMENT_IN(true), ADJUSTMENT_OUT(false);
+        DAMAGE_OUT(false), LOSS_OUT(false), ADJUSTMENT_IN(true), ADJUSTMENT_OUT(false), EXPIRY_OUT(false),
+        CHALLAN_OUT(false), CHALLAN_RETURN_IN(true), JOB_WORK_OUT(false), JOB_WORK_IN(true),
+        TRANSFER_OUT(false), TRANSFER_IN(true);
 
         private final boolean inbound;
 

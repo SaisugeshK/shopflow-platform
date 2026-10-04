@@ -1,17 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'motion/react'
-import { ArrowLeft, ShieldCheck, Smartphone, Store } from 'lucide-react'
+import { ArrowLeft, Building2, ShieldCheck, Smartphone, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Feedback'
 import { useToast } from '@/components/ui/Toast'
 import { Field, OTPInput, PhoneInput } from '@/components/ui/Form'
 import { api, ApiError } from '@/services/api'
-import type { AuthResponse } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-import { homeFor } from './useSession'
+import type { AuthResponse, TenantChoice } from '@/services/api'
+import { choiceKey, TenantPicker, useCompleteSignIn } from './TenantPicker'
+import { Link } from 'react-router-dom'
 
 interface Challenge {
   requestId: string
@@ -22,12 +21,22 @@ interface Challenge {
   demoOtp?: string
 }
 
+/** The business a join link (/join/{code}) belongs to: the sign-in signs into, or registers with, that business. */
+export interface JoinTenant {
+  tenantCode: string
+  name: string
+  logoUrl?: string
+  city?: string
+}
+
 /**
  * A02 Mobile Login + A03 OTP Verification. The role is never chosen by the user; it comes from the account (§4.1).
- * New numbers continue to customer registration with a single-use registration token.
+ * A number in several businesses picks one (§0B.4); new numbers continue to customer registration with a single-use
+ * registration token — for the join link's business, or the default one.
  */
-export function LoginPage() {
-  const navigate = useNavigate()
+export function LoginPage({ join }: { join?: JoinTenant } = {}) {
+  const complete = useCompleteSignIn()
+  const [selection, setSelection] = useState<{ token: string; tenants: TenantChoice[] } | null>(null)
   const [mobile, setMobile] = useState('')
   const [otp, setOtp] = useState('')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
@@ -54,16 +63,18 @@ export function LoginPage() {
   })
 
   const verify = useMutation({
-    mutationFn: () => api.post<AuthResponse>('/api/v1/auth/otp/verify', { mobileNumber: mobile, otp, requestId: challenge!.requestId }),
+    mutationFn: () => api.post<AuthResponse>('/api/v1/auth/otp/verify', {
+      mobileNumber: mobile, otp, requestId: challenge!.requestId, tenantCode: join?.tenantCode,
+    }),
     onSuccess: (r) => {
-      if (r.registrationRequired) {
-        useAuthStore.getState().setRegistration({ token: r.registrationToken!, mobile })
-        navigate('/register', { replace: true })
-        return
-      }
-      useAuthStore.getState().setSession(r.accessToken!, r.user!)
-      navigate(homeFor(r.user!.role, r.user!.customer?.status), { replace: true })
+      if (complete(r, mobile) === 'selection') setSelection({ token: r.selectionToken!, tenants: r.tenants ?? [] })
     },
+  })
+
+  const select = useMutation({
+    mutationFn: (c: TenantChoice) => api.post<AuthResponse>('/api/v1/auth/select-tenant',
+      c.platform ? { platform: true } : { businessId: c.businessId }, { Authorization: `Bearer ${selection!.token}` }),
+    onSuccess: (r) => complete(r, mobile),
   })
 
   useEffect(() => {
@@ -74,6 +85,7 @@ export function LoginPage() {
   const mobileValid = /^[6-9]\d{9}$/.test(mobile)
   const requestError = request.error instanceof ApiError ? request.error : null
   const verifyError = verify.error instanceof ApiError ? verify.error : null
+  const selectError = select.error instanceof ApiError ? select.error : null
 
   const submitMobile = (e: FormEvent) => {
     e.preventDefault()
@@ -88,14 +100,23 @@ export function LoginPage() {
     <div className="auth-page">
       <section className="auth-hero" aria-hidden>
         <div className="row" style={{ color: '#fff', fontWeight: 700 }}>
-          <span className="brand-mark"><Store size={18} /></span> ShopFlow
+          <span className="brand-mark"><Store size={18} /></span> {join ? join.name : 'ShopFlow'}
         </div>
-        <div className="stack" style={{ maxWidth: 480 }}>
-          <h1>Run your wholesale business from one place.</h1>
-          <p style={{ fontSize: '1.05rem', color: '#cbd5e1' }}>
-            Orders, stock, GST invoices, credit and payments — for the shop team and every retailer you supply.
-          </p>
-        </div>
+        {join ? (
+          <div className="stack" style={{ maxWidth: 480 }}>
+            <h1>Order from {join.name}{join.city ? `, ${join.city}` : ''}.</h1>
+            <p style={{ fontSize: '1.05rem', color: '#cbd5e1' }}>
+              Sign in with your mobile number. New retailers register in one step and start ordering once the shop approves.
+            </p>
+          </div>
+        ) : (
+          <div className="stack" style={{ maxWidth: 480 }}>
+            <h1>Run your wholesale business from one place.</h1>
+            <p style={{ fontSize: '1.05rem', color: '#cbd5e1' }}>
+              Orders, stock, GST invoices, credit and payments — for the shop team and every retailer you supply.
+            </p>
+          </div>
+        )}
         <div className="row small" style={{ color: '#94a3b8' }}>
           <ShieldCheck size={16} /> Secure sign-in with a one-time password. No passwords to remember.
         </div>
@@ -103,12 +124,28 @@ export function LoginPage() {
       <section className="auth-panel">
         <motion.div className="auth-card card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <div className="card-body stack" style={{ padding: 32 }}>
-            {!challenge ? (
+            {selection ? (
+              <div className="stack">
+                <div className="stack-sm">
+                  <span className="stat-icon tone-primary" style={{ position: 'static' }}><Building2 size={18} /></span>
+                  <h2>Choose a business</h2>
+                  <p className="muted small">Your number is registered with more than one business. You can switch later from the menu.</p>
+                </div>
+                <TenantPicker choices={selection.tenants} busyKey={select.isPending ? choiceKey(select.variables!) : null} onPick={(c) => select.mutate(c)} />
+                {selectError && <Alert tone="danger">{selectError.message}</Alert>}
+                <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { setSelection(null); setChallenge(null) }}>
+                  <ArrowLeft size={14} /> Use another number
+                </button>
+              </div>
+            ) : !challenge ? (
               <form onSubmit={submitMobile} className="stack" noValidate>
                 <div className="stack-sm">
                   <span className="stat-icon tone-primary" style={{ position: 'static' }}><Smartphone size={18} /></span>
-                  <h2>Sign in</h2>
-                  <p className="muted small">Enter your registered mobile number. New retailers can register with the same step.</p>
+                  <h2>{join ? `Sign in to ${join.name}` : 'Sign in'}</h2>
+                  <p className="muted small">
+                    {join ? 'Enter your mobile number. If you are new to this shop, you can register with the same step.'
+                      : 'Enter your registered mobile number. New retailers can register with the same step.'}
+                  </p>
                 </div>
                 <Field label="Mobile number" htmlFor="mobile" error={requestError?.fieldError('mobileNumber')}>
                   <PhoneInput id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} autoFocus invalid={!!requestError?.fieldError('mobileNumber')} />
@@ -117,6 +154,7 @@ export function LoginPage() {
                 <Button type="submit" size="lg" block loading={request.isPending} disabled={!mobileValid}>
                   Send OTP
                 </Button>
+                {!join && <p className="small muted" style={{ textAlign: 'center' }}>Run a business? <Link to="/signup">Get ShopFlow for your business</Link></p>}
               </form>
             ) : (
               <form onSubmit={submitOtp} className="stack" noValidate>

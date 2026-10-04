@@ -16,8 +16,9 @@ import type { BusinessProfile } from '@/services/types'
 import { colors, radius } from '@/theme/tokens'
 import { titleCase } from '@/utils/format'
 import { STATE_OPTIONS } from '@/utils/india'
+import { PlanUsageSection } from './SaasScreens'
 
-type Tab = 'profile' | 'bank' | 'invoice' | 'tax' | 'rules' | 'whatsapp'
+type Tab = 'profile' | 'bank' | 'invoice' | 'tax' | 'rules' | 'whatsapp' | 'plan'
 type Values = Record<string, string | number | boolean | null | undefined | number[]>
 type FieldDef = [key: string, label: string, kind: 'text' | 'number' | 'textarea' | 'switch' | 'select', hint?: string, options?: string[]]
 
@@ -30,7 +31,9 @@ export default function SettingsScreen() {
         <ChipGroup value={tab} onChange={(t) => setTab(t as Tab)} options={[
           { value: 'profile', label: 'Business profile' }, { value: 'bank', label: 'Bank details' }, { value: 'invoice', label: 'Invoice' },
           { value: 'tax', label: 'GST / Tax' }, { value: 'rules', label: 'Credit & orders' }, { value: 'whatsapp', label: 'WhatsApp & alerts' },
+          { value: 'plan', label: 'Plan & usage' },
         ]} />
+        {tab === 'plan' && <PlanUsageSection />}
         {tab === 'profile' && <ProfileSettings />}
         {tab === 'bank' && <BankSettings />}
         {tab === 'invoice' && <SettingsForm path="/api/v1/business/invoice-settings" fields={[

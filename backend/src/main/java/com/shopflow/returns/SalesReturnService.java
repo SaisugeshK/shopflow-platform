@@ -17,6 +17,7 @@ import com.shopflow.common.util.Validation;
 import com.shopflow.customers.Customer;
 import com.shopflow.customers.CustomerService;
 import com.shopflow.inventory.InventoryService;
+import com.shopflow.inventory.StockTrace;
 import com.shopflow.inventory.StockMovement.MovementType;
 import com.shopflow.notifications.NotificationService;
 import com.shopflow.orders.Order;
@@ -196,8 +197,12 @@ public class SalesReturnService {
         }
         sr.getItems().stream().sorted(Comparator.comparing(SalesReturnItem::getProductId)).forEach(ri -> {
             InvoiceItem item = invoice.getItems().stream().filter(i -> i.getId().equals(ri.getInvoiceItemId())).findFirst().orElseThrow();
-            inventory.post(ri.getProductId(), MovementType.SALES_RETURN_IN, ri.getQuantity(), item.getUnitCost(), "SALES_RETURN",
-                    sr.getId(), sr.getReturnNumber(), sr.getReason(), null);
+            // Back into stock in base units, into the batches/serials it left with (order delivery or counter invoice).
+            BigDecimal factor = item.getUnitFactor();
+            inventory.postTraced(ri.getProductId(), MovementType.SALES_RETURN_IN, Money.qty(ri.getQuantity().multiply(factor)),
+                    item.getUnitCost().divide(factor, 2, java.math.RoundingMode.HALF_UP), "SALES_RETURN", sr.getId(),
+                    sr.getReturnNumber(), sr.getReason(), null, invoice.getOrderId() != null
+                            ? StockTrace.reversing("ORDER", invoice.getOrderId()) : StockTrace.reversing("INVOICE", invoice.getId()));
         });
         CreditNote creditNote = creditNotes.issue(invoice, lines, CreditNote.ReasonType.SALES_RETURN,
                 "Sales return " + sr.getReturnNumber() + ": " + sr.getReason(), "SALES_RETURN", sr.getId());

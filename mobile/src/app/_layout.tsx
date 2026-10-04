@@ -38,6 +38,9 @@ function Root() {
       <Stack.Screen name="registration-status" />
       <Stack.Screen name="shop" />
       <Stack.Screen name="admin" />
+      <Stack.Screen name="supplier" />
+      <Stack.Screen name="platform" />
+      <Stack.Screen name="signup" />
     </Stack>
   )
 }

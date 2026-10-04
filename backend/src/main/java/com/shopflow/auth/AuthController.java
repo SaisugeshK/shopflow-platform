@@ -6,6 +6,10 @@ import com.shopflow.auth.AuthDtos.OtpRequestBody;
 import com.shopflow.auth.AuthDtos.OtpRequestResponse;
 import com.shopflow.auth.AuthDtos.OtpVerifyBody;
 import com.shopflow.auth.AuthDtos.RefreshBody;
+import com.shopflow.auth.AuthDtos.SelectTenantBody;
+import com.shopflow.common.error.BusinessException;
+import com.shopflow.common.error.ErrorCode;
+import com.shopflow.security.JwtService;
 import com.shopflow.auth.AuthService.AuthResult;
 import com.shopflow.common.api.ApiResponse;
 import com.shopflow.common.web.RequestContext;
@@ -55,14 +59,43 @@ public class AuthController {
 
     @PostMapping("/otp/verify")
     @Operation(summary = "Verify an OTP and sign in",
-            description = "On success returns access/refresh tokens for an existing account, or registrationRequired=true with a registration token for a new number. "
+            description = "On success returns access/refresh tokens when the number belongs to one tenant; selectionRequired=true with a selection token and the tenants to pick from "
+                    + "when it belongs to several; or registrationRequired=true with a registration token for a number new to the tenant (tenantCode from the join link, else the default tenant). "
                     + "Web clients (X-Client-Type: web) receive the refresh token only as an HttpOnly cookie. "
-                    + "Errors: AUTH_INVALID_OTP, AUTH_OTP_EXPIRED, AUTH_TOO_MANY_ATTEMPTS, AUTH_ACCOUNT_INACTIVE, CUSTOMER_BLOCKED, CUSTOMER_NOT_APPROVED.")
+                    + "Errors: AUTH_INVALID_OTP, AUTH_OTP_EXPIRED, AUTH_TOO_MANY_ATTEMPTS, AUTH_ACCOUNT_INACTIVE, CUSTOMER_BLOCKED, CUSTOMER_NOT_APPROVED, "
+                    + "TENANT_NOT_FOUND, TENANT_SUSPENDED, TENANT_JOIN_LINK_REQUIRED.")
     public ApiResponse<AuthResponse> verifyOtp(@Valid @RequestBody OtpVerifyBody body,
                                                @Parameter(description = "Send 'web' from browsers") @RequestHeader(value = CLIENT_TYPE_HEADER, required = false) String clientType,
                                                HttpServletResponse response) {
-        AuthResult result = authService.verifyOtp(body.mobileNumber(), body.requestId(), body.otp(),
+        AuthResult result = authService.verifyOtp(body.mobileNumber(), body.requestId(), body.otp(), body.tenantCode(),
                 body.deviceInfo() != null ? body.deviceInfo() : RequestContext.userAgent(), RequestContext.clientIp());
+        return ApiResponse.ok(cookies.apply(result, clientType, response));
+    }
+
+    @PostMapping("/select-tenant")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Enter one of the tenants offered after OTP",
+            description = "Bearer = the selectionToken from /auth/otp/verify (selectionRequired=true). Body: businessId of a listed tenant, "
+                    + "or platform=true for the Super Admin console. Errors: TENANT_NOT_MEMBER, TENANT_SUSPENDED, AUTH_ACCOUNT_INACTIVE.")
+    public ApiResponse<AuthResponse> selectTenant(@RequestBody SelectTenantBody body,
+                                                  @RequestHeader(value = CLIENT_TYPE_HEADER, required = false) String clientType,
+                                                  HttpServletResponse response) {
+        String mobile = CurrentUser.selectionJwt().map(j -> j.getClaimAsString(JwtService.CLAIM_MOBILE))
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Selection token required"));
+        AuthResult result = authService.selectTenant(mobile, body, RequestContext.userAgent(), RequestContext.clientIp());
+        return ApiResponse.ok(cookies.apply(result, clientType, response));
+    }
+
+    @PostMapping("/switch-tenant")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Switch the signed-in number to another of its tenants (or the console)",
+            description = "Ends the current session and starts one in the chosen tenant; see /auth/me memberships. "
+                    + "Errors: TENANT_NOT_MEMBER, TENANT_SUSPENDED.")
+    public ApiResponse<AuthResponse> switchTenant(@RequestBody SelectTenantBody body,
+                                                  @RequestHeader(value = CLIENT_TYPE_HEADER, required = false) String clientType,
+                                                  HttpServletResponse response) {
+        AuthResult result = authService.switchTenant(CurrentUser.id(), CurrentUser.isPlatform(), CurrentUser.sessionId().orElse(null),
+                body, RequestContext.userAgent(), RequestContext.clientIp());
         return ApiResponse.ok(cookies.apply(result, clientType, response));
     }
 
@@ -97,6 +130,10 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Current user, role, permissions and customer status")
     public ApiResponse<MeResponse> me() {
-        return ApiResponse.ok(authService.me(CurrentUser.id()));
+        if (CurrentUser.isSupport()) {
+            return ApiResponse.ok(authService.supportMe(CurrentUser.id(),
+                    CurrentUser.jwt().map(j -> j.getClaimAsStringList(JwtService.CLAIM_PERMISSIONS)).orElse(java.util.List.of())));
+        }
+        return ApiResponse.ok(authService.me(CurrentUser.id(), CurrentUser.isPlatform()));
     }
 }

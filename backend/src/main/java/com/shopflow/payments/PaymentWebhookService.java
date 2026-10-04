@@ -7,13 +7,16 @@ import com.shopflow.integrations.payment.PaymentGateway.GatewayEvent;
 import com.shopflow.payments.PaymentRepositories.PaymentGatewayEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.shopflow.tenancy.TenantContext;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Webhook pipeline (§97): verify signature → store raw event → de-duplicate by event id → apply transactionally.
@@ -31,8 +34,11 @@ public class PaymentWebhookService {
     private final TransactionTemplate tx;
     private final TransactionTemplate newTx;
 
+    private final JdbcTemplate jdbc;
+
     public PaymentWebhookService(PaymentGateway gateway, PaymentGatewayEventRepository events, PaymentService payments,
-                                 PlatformTransactionManager txManager) {
+                                 PlatformTransactionManager txManager, JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.gateway = gateway;
         this.events = events;
         this.payments = payments;
@@ -74,6 +80,18 @@ public class PaymentWebhookService {
         if (events.existsByProviderAndEventId(provider, event.eventId())) {
             return "DUPLICATE";
         }
+        // The provider knows nothing about tenants: find the payment's tenant (platform lookup), then apply the event
+        // inside that tenant so every read and write stays under its RLS scope (§0B.3).
+        UUID tenant = TenantContext.callAsPlatform(() -> jdbc.queryForList(
+                "SELECT business_id FROM payments WHERE provider = ? AND provider_order_id = ?", UUID.class,
+                provider, event.providerOrderId())).stream().findFirst().orElse(null);
+        if (tenant == null) {
+            return TenantContext.callAsPlatform(() -> apply(provider, payload, event));
+        }
+        return TenantContext.callInTenant(tenant, () -> apply(provider, payload, event));
+    }
+
+    private String apply(String provider, String payload, GatewayEvent event) {
         try {
             return tx.execute(s -> {
                 PaymentGatewayEvent stored = events.saveAndFlush(new PaymentGatewayEvent(provider, event.eventId(),

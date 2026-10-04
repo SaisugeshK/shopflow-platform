@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { homeFor, useBootstrapSession } from './useSession'
 
 /** Waits for session restore, then requires a signed-in user of the given kind. UI checks mirror, never replace, server authorization. */
-export function RequireAuth({ kind, children }: { kind: 'staff' | 'customer' | 'any'; children: ReactNode }) {
+export function RequireAuth({ kind, children }: { kind: 'staff' | 'customer' | 'platform' | 'supplier' | 'any'; children: ReactNode }) {
   const initialized = useBootstrapSession()
   const user = useAuthStore((s) => s.user)
   const location = useLocation()
@@ -13,9 +13,12 @@ export function RequireAuth({ kind, children }: { kind: 'staff' | 'customer' | '
     return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Spinner size={28} label="Restoring session" /></div>
   }
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (kind === 'staff' && user.role === 'CUSTOMER') return <Navigate to={homeFor(user.role, user.customer?.status)} replace />
+  const home = homeFor(user.role, user.customer?.status)
+  if (kind === 'staff' && user.role !== 'OWNER' && user.role !== 'ADMIN') return <Navigate to={home} replace />
+  if (kind === 'platform' && user.role !== 'SUPER_ADMIN') return <Navigate to={home} replace />
+  if (kind === 'supplier' && user.role !== 'SUPPLIER') return <Navigate to={home} replace />
   if (kind === 'customer') {
-    if (user.role !== 'CUSTOMER') return <Navigate to="/app" replace />
+    if (user.role !== 'CUSTOMER') return <Navigate to={home} replace />
     if (user.customer?.status !== 'APPROVED') return <Navigate to="/registration-status" replace />
   }
   return <>{children}</>

@@ -148,7 +148,8 @@ public class PurchaseController {
         List<PurchaseItemResponse> items = withDetail ? p.getItems().stream().map(i -> new PurchaseItemResponse(i.getId(),
                 i.getLineNumber(), i.getProductId(), i.getProductName(), i.getHsnCode(), i.getUnit(), i.getQuantity(),
                 i.getRate(), i.getDiscountPercent(), i.getDiscountAmount(), i.getTaxRate(), i.getTaxableAmount(),
-                i.getCgstAmount(), i.getSgstAmount(), i.getIgstAmount(), i.getLineTotal(), i.getReturnedQuantity())).toList() : null;
+                i.getCgstAmount(), i.getSgstAmount(), i.getIgstAmount(), i.getLineTotal(), i.getReturnedQuantity(),
+                i.getUnitFactor(), i.getBatchNumber(), i.getMfgDate(), i.getExpiryDate(), i.serialList())).toList() : null;
         List<PurchasePaymentResponse> pays = withDetail ? service.paymentsFor(p.getId()).stream()
                 .map(x -> new PurchasePaymentResponse(x.getId(), x.getPaymentNumber(), x.getAmount(), x.getMethod(),
                         x.getReferenceNumber(), x.getPaidAt(), x.getNotes())).toList() : null;

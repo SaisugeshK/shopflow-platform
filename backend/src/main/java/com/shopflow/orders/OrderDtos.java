@@ -22,7 +22,8 @@ public final class OrderDtos {
     // ---------------------------------------------------------------- cart
 
     public record CartItemRequest(@NotNull UUID productId,
-                                  @NotNull @DecimalMin("0.001") @Digits(integer = 11, fraction = 3) BigDecimal quantity) {
+                                  @NotNull @DecimalMin("0.001") @Digits(integer = 11, fraction = 3) BigDecimal quantity,
+                                  @Size(max = 20) String unit) {
     }
 
     public record UpdateCartItemRequest(@NotNull @DecimalMin("0.001") @Digits(integer = 11, fraction = 3) BigDecimal quantity) {
@@ -31,7 +32,8 @@ public final class OrderDtos {
     public record CartLine(UUID id, UUID productId, String sku, String productName, String unit, String imageUrl,
                            BigDecimal quantity, BigDecimal unitPrice, BigDecimal mrp, BigDecimal discountAmount,
                            BigDecimal taxRate, BigDecimal taxableAmount, BigDecimal taxAmount, BigDecimal lineTotal,
-                           String stockStatus, String issue) {
+                           String stockStatus, String issue, BigDecimal unitFactor, String schemeName,
+                           BigDecimal freeQuantity) {
     }
 
     /** Totals are a backend preview; the order is re-priced at checkout. */
@@ -43,7 +45,14 @@ public final class OrderDtos {
     // ---------------------------------------------------------------- orders
 
     public record OrderLineRequest(@NotNull UUID productId,
-                                   @NotNull @DecimalMin("0.001") @Digits(integer = 11, fraction = 3) BigDecimal quantity) {
+                                   @NotNull @DecimalMin("0.001") @Digits(integer = 11, fraction = 3) BigDecimal quantity,
+                                   @Size(max = 20) String unit,
+                                   /* Used only when an order is made from an accepted quotation (server-side). */
+                                   @DecimalMin("0") BigDecimal rate,
+                                   @DecimalMin("0") BigDecimal discountPercent) {
+        public OrderLineRequest(UUID productId, BigDecimal quantity, String unit) {
+            this(productId, quantity, unit, null, null);
+        }
     }
 
     /**
@@ -54,7 +63,11 @@ public final class OrderDtos {
                                      UUID addressId,
                                      @NotNull PaymentMethod paymentMethod,
                                      @Size(max = 1000) String orderNote,
-                                     @Size(max = 200) List<@Valid OrderLineRequest> items) {
+                                     @Size(max = 200) List<@Valid OrderLineRequest> items,
+                                     UUID projectId) {
+        public CreateOrderRequest(UUID customerId, UUID addressId, PaymentMethod paymentMethod, String orderNote, List<OrderLineRequest> items) {
+            this(customerId, addressId, paymentMethod, orderNote, items, null);
+        }
     }
 
     public record AcceptLine(@NotNull UUID orderItemId, @NotNull @DecimalMin("0") BigDecimal acceptedQuantity) {
@@ -87,7 +100,8 @@ public final class OrderDtos {
                                     BigDecimal cancelledQuantity, BigDecimal returnedQuantity,
                                     BigDecimal invoicedQuantity, BigDecimal pendingQuantity, BigDecimal rate,
                                     BigDecimal discountAmount, BigDecimal taxRate, BigDecimal taxableAmount,
-                                    BigDecimal taxAmount, BigDecimal lineTotal) {
+                                    BigDecimal taxAmount, BigDecimal lineTotal, BigDecimal unitFactor, boolean freeItem,
+                                    String schemeName) {
     }
 
     public record StatusHistoryResponse(String previousStatus, String newStatus, String changedBy, Instant changedAt,

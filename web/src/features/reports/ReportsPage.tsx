@@ -80,11 +80,11 @@ export function ReportsPage() {
                 <thead><tr>{d.columns.map((c) => <th key={c.key} scope="col" className={NUMERIC.includes(c.type) ? 'right' : ''}>{c.label}</th>)}</tr></thead>
                 <tbody>
                   {d.rows.map((row, i) => (
-                    <tr key={i}>{d.columns.map((c) => <td key={c.key} className={NUMERIC.includes(c.type) ? 'right num' : ''}>{cell(row[c.key], c)}</td>)}</tr>
+                    <tr key={i}>{d.columns.map((c) => <td key={c.key} data-label={c.label} className={NUMERIC.includes(c.type) ? 'right num' : ''}>{cell(row[c.key], c)}</td>)}</tr>
                   ))}
                 </tbody>
                 {Object.keys(d.totals).length > 0 && (
-                  <tfoot><tr>{d.columns.map((c, i) => <td key={c.key} className={NUMERIC.includes(c.type) ? 'right num' : ''}>{i === 0 ? 'Total' : c.key in d.totals ? cell(d.totals[c.key], c) : ''}</td>)}</tr></tfoot>
+                  <tfoot><tr>{d.columns.map((c, i) => <td key={c.key} data-label={i === 0 ? undefined : c.label} className={NUMERIC.includes(c.type) ? 'right num' : ''}>{i === 0 ? 'Total' : c.key in d.totals ? cell(d.totals[c.key], c) : ''}</td>)}</tr></tfoot>
                 )}
               </table>
             </div>

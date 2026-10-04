@@ -28,6 +28,9 @@ export default function ShopLayout() {
       <Stack.Screen name="payments" options={{ title: 'Payments' }} />
       <Stack.Screen name="outstanding" options={{ title: 'Credit & outstanding' }} />
       <Stack.Screen name="returns" options={{ title: 'Returns' }} />
+      <Stack.Screen name="quotations" options={{ title: 'Quotations' }} />
+      <Stack.Screen name="quotation/[id]" options={{ title: 'Quotation' }} />
+      <Stack.Screen name="projects" options={{ title: 'Projects' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
     </Stack>
   )

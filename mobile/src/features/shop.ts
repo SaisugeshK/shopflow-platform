@@ -12,7 +12,8 @@ export function useCart(enabled = true) {
 export function useAddToCart() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ productId, qty }: { productId: string; qty: number }) => api.post<Cart>('/api/v1/cart/items', { productId, quantity: String(qty) }),
+    mutationFn: ({ productId, qty, unit }: { productId: string; qty: number; unit?: string }) =>
+      api.post<Cart>('/api/v1/cart/items', { productId, quantity: String(qty), unit }),
     onSuccess: (cart) => {
       qc.setQueryData(['cart'], cart)
       toast.success('Added to cart')

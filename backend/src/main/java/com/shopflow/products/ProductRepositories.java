@@ -34,6 +34,10 @@ public interface ProductRepositories {
         List<Product> findByIdIn(Collection<UUID> ids);
 
         long countByCategoryId(UUID categoryId);
+
+        List<Product> findByParentIdOrderByNameAsc(UUID parentId);
+
+        Optional<Product> findFirstByBarcode(String barcode);
     }
 
     interface ProductPriceRepository extends JpaRepository<ProductPrice, UUID> {
@@ -42,6 +46,16 @@ public interface ProductRepositories {
         List<ProductPrice> findByCustomerIdAndActiveTrue(UUID customerId);
 
         List<ProductPrice> findByCustomerIdAndProductIdInAndActiveTrue(UUID customerId, Collection<UUID> productIds);
+    }
+
+    interface ProductUnitRepository extends JpaRepository<ProductUnit, UUID> {
+        List<ProductUnit> findByProductIdOrderByFactorAsc(UUID productId);
+
+        List<ProductUnit> findByProductIdIn(Collection<UUID> productIds);
+
+        Optional<ProductUnit> findByProductIdAndUnit(UUID productId, String unit);
+
+        void deleteByProductId(UUID productId);
     }
 
     interface ProductImageRepository extends JpaRepository<ProductImage, UUID> {

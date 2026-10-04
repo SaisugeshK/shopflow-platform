@@ -6,7 +6,7 @@ import { imageUri, ProductImage } from '@/components/shop/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { Badge, StatusBadge } from '@/components/ui/Data'
 import { QueryState } from '@/components/ui/Feedback'
-import { QuantityStepper } from '@/components/ui/Form'
+import { ChipGroup, QuantityStepper } from '@/components/ui/Form'
 import { Screen } from '@/components/ui/Screen'
 import { Text } from '@/components/ui/Text'
 import { useAddToCart } from '@/features/shop'
@@ -19,6 +19,7 @@ import { money, quantity } from '@/utils/format'
 export default function CatalogProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [qty, setQty] = useState(1)
+  const [unit, setUnit] = useState('')
   const [image, setImage] = useState(0)
   const add = useAddToCart()
   const { width } = useWindowDimensions()
@@ -34,9 +35,9 @@ export default function CatalogProductScreen() {
         refreshing={q.isRefetching}
         footer={p && (
           <View style={styles.cta}>
-            <QuantityStepper value={qty} onChange={setQty} min={1} max={p.availableQuantity ?? undefined} disabled={out} />
+            <QuantityStepper value={qty} onChange={setQty} min={1} max={unit ? undefined : p.availableQuantity ?? undefined} disabled={out} />
             <Button size="lg" icon="shopping-cart" style={{ flex: 1 }} loading={add.isPending} disabled={out}
-              onPress={() => add.mutate({ productId: p.id, qty }, { onSuccess: () => router.push('/shop/cart') })}>
+              onPress={() => add.mutate({ productId: p.id, qty, unit: unit || undefined }, { onSuccess: () => router.push('/shop/cart') })}>
               {out ? 'Out of stock' : 'Add to cart'}
             </Button>
           </View>
@@ -66,11 +67,16 @@ export default function CatalogProductScreen() {
                   <Text variant="xs" color="muted">SKU {p.sku}{p.hsnCode ? ` · HSN ${p.hsnCode}` : ''}</Text>
                 </View>
                 <View style={styles.priceRow}>
-                  <Text style={{ fontSize: 28, fontWeight: '800' }} num>{money(p.price)}</Text>
-                  {p.mrp != null && p.mrp > p.price && <Text color="muted" style={{ textDecorationLine: 'line-through' }}>MRP {money(p.mrp)}</Text>}
+                  <Text style={{ fontSize: 28, fontWeight: '800' }} num>{money(p.units.find((u) => u.unit === unit)?.price ?? p.price)}</Text>
+                  {!unit && p.mrp != null && p.mrp > p.price && <Text color="muted" style={{ textDecorationLine: 'line-through' }}>MRP {money(p.mrp)}</Text>}
                 </View>
                 {p.customPrice && <Badge tone="success">Your special price</Badge>}
-                <Text variant="small" color="muted">Per {p.unit}, excluding {p.gstRate}% GST. Final prices and tax are confirmed at checkout.</Text>
+                {p.variantAttributes && <Text variant="small">{p.variantAttributes}</Text>}
+                {p.units.length > 0 && (
+                  <ChipGroup value={unit || p.unit} onChange={(u) => setUnit(u === p.unit ? '' : u)}
+                    options={[{ value: p.unit, label: p.unit }, ...p.units.map((u) => ({ value: u.unit, label: `${u.unit} of ${Number(u.factor)}` }))]} />
+                )}
+                <Text variant="small" color="muted">Per {unit ? `${unit} (${Number(p.units.find((u) => u.unit === unit)?.factor ?? 1)} ${p.unit})` : p.unit}, excluding {p.gstRate}% GST. Final prices and tax are confirmed at checkout.</Text>
                 <View style={styles.priceRow}>
                   <StatusBadge status={p.stockStatus} />
                   {p.availableQuantity != null && <Text variant="small" color="muted">{quantity(p.availableQuantity)} {p.unit} available</Text>}

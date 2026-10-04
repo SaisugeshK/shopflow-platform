@@ -15,6 +15,12 @@ public enum DocumentType {
     PURCHASE_RETURN("PR", true),
     PURCHASE_PAYMENT("PP", true),
     STOCK_ADJUSTMENT("ADJ", true),
+    PURCHASE_ORDER("PO", true),
+    GOODS_RECEIPT("GRN", true),
+    QUOTATION("QT", true),
+    DELIVERY_CHALLAN("DC", true),
+    JOB_WORK("JW", true),
+    STOCK_TRANSFER("ST", true),
     CUSTOMER("CUST", false),
     SUPPLIER("SUP", false);
 

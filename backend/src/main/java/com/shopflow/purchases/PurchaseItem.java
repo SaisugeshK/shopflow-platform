@@ -44,4 +44,16 @@ public class PurchaseItem {
     private BigDecimal igstAmount;
     private BigDecimal lineTotal;
     private BigDecimal returnedQuantity = BigDecimal.ZERO;
+    /** Base (stock) units per {@link #unit} — 1 for the product's own unit (§0B.7). */
+    private BigDecimal unitFactor = BigDecimal.ONE;
+    private String batchNumber;
+    private java.time.LocalDate mfgDate;
+    private java.time.LocalDate expiryDate;
+    /** Received serial numbers, comma separated. */
+    private String serialNumbers;
+
+    public java.util.List<String> serialList() {
+        return serialNumbers == null || serialNumbers.isBlank() ? java.util.List.of()
+                : java.util.Arrays.stream(serialNumbers.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+    }
 }

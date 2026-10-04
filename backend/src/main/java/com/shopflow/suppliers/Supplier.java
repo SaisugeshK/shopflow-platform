@@ -30,6 +30,8 @@ public class Supplier extends BaseEntity {
     private int creditDays;
     @Column(nullable = false)
     private boolean active = true;
+    /** Supplier portal login (users row with role SUPPLIER), when invited (§0B.8). */
+    private UUID userId;
     private UUID createdBy;
     private UUID updatedBy;
 }

@@ -26,7 +26,12 @@ public final class PurchaseDtos {
                                       @NotNull @DecimalMin("0") @Digits(integer = 12, fraction = 2) BigDecimal rate,
                                       @DecimalMin("0") @DecimalMax("100") BigDecimal discountPercent,
                                       @DecimalMin("0") BigDecimal discountAmount,
-                                      @DecimalMin("0") @DecimalMax("100") BigDecimal taxRate) {
+                                      @DecimalMin("0") @DecimalMax("100") BigDecimal taxRate,
+                                      @Size(max = 20) String unit,
+                                      @Size(max = 60) String batchNumber,
+                                      LocalDate mfgDate,
+                                      LocalDate expiryDate,
+                                      @Size(max = 500) List<@Size(max = 80) String> serialNumbers) {
     }
 
     public record CreatePurchaseRequest(@NotNull UUID supplierId,
@@ -52,7 +57,8 @@ public final class PurchaseDtos {
                                        String unit, BigDecimal quantity, BigDecimal rate, BigDecimal discountPercent,
                                        BigDecimal discountAmount, BigDecimal taxRate, BigDecimal taxableAmount,
                                        BigDecimal cgstAmount, BigDecimal sgstAmount, BigDecimal igstAmount,
-                                       BigDecimal lineTotal, BigDecimal returnedQuantity) {
+                                       BigDecimal lineTotal, BigDecimal returnedQuantity, BigDecimal unitFactor,
+                                       String batchNumber, LocalDate mfgDate, LocalDate expiryDate, List<String> serialNumbers) {
     }
 
     public record PurchasePaymentResponse(UUID id, String paymentNumber, BigDecimal amount, String method,

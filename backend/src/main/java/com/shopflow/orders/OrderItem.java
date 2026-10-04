@@ -56,6 +56,17 @@ public class OrderItem {
     private BigDecimal sgstAmount;
     private BigDecimal igstAmount;
     private BigDecimal lineTotal;
+    /** Base (stock) units per {@link #unit}; stock is reserved and moved in base units (§0B.7). */
+    private BigDecimal unitFactor = BigDecimal.ONE;
+    /** Free goods from a buy-X-get-Y scheme (rate 0). */
+    private boolean freeItem;
+    private UUID schemeId;
+    private String schemeName;
+
+    /** A quantity of this line in base (stock) units. */
+    public BigDecimal base(BigDecimal quantity) {
+        return com.shopflow.common.util.Money.qty(quantity.multiply(unitFactor));
+    }
 
     public BigDecimal pendingQuantity() {
         BigDecimal base = acceptedQuantity.signum() > 0 ? acceptedQuantity : orderedQuantity;

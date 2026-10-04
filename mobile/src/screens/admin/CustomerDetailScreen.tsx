@@ -19,6 +19,7 @@ import type { CustomerDetail, Invoice, Order, Payment } from '@/services/types'
 import { useCan } from '@/store/auth'
 import { colors } from '@/theme/tokens'
 import { date, dateTime, money, titleCase } from '@/utils/format'
+import { CustomerTradeSection } from '@/components/trade/TradeParts'
 
 type Tab = 'overview' | 'orders' | 'invoices' | 'payments' | 'ledger' | 'prices'
 
@@ -91,6 +92,7 @@ export default function CustomerDetailScreen() {
                       </View>
                     )}
                   </Card>
+                  <CustomerTradeSection customer={c} onChanged={refresh} />
                 </>
               )}
               {tab === 'orders' && (

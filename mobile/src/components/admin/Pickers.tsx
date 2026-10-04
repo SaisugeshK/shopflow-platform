@@ -63,7 +63,7 @@ export function ProductPickerButton({ onPick, exclude = [], label = 'Add product
   const debounced = useDebounced(q, 250)
   const results = useQuery({
     queryKey: ['products', 'picker', debounced],
-    queryFn: () => api.page<Product>('/api/v1/products', { q: debounced, active: true, pageSize: 25 }),
+    queryFn: () => api.page<Product>('/api/v1/products', { q: debounced, active: true, sellable: true, pageSize: 25 }),
     enabled: open,
   })
   const items = (results.data?.items ?? []).filter((p) => !exclude.includes(p.id))

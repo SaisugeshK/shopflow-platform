@@ -114,6 +114,8 @@ public class BusinessSettingsService {
         Business b = business();
         UUID old = b.getLogoFileId();
         b.setLogoFileId(fileId);
+        businesses.saveAndFlush(b);
+        context.evict();
         audit.record(AuditAction.SETTINGS_CHANGED, "BUSINESS", b.getId(),
                 java.util.Map.of("logoFileId", String.valueOf(old)), java.util.Map.of("logoFileId", fileId));
         return BusinessProfileResponse.of(b);
@@ -139,6 +141,8 @@ public class BusinessSettingsService {
         set(r.notifyEmail(), s::setNotifyEmail);
         set(r.notifyWhatsapp(), s::setNotifyWhatsapp);
         set(r.dataRetentionYears(), s::setDataRetentionYears);
+        set(r.blockExpiredSales(), s::setBlockExpiredSales);
+        set(r.nearExpiryDays(), s::setNearExpiryDays);
         settingsRepo.saveAndFlush(s);
         BusinessSettingsResponse after = BusinessSettingsResponse.of(s);
         audit.record(AuditAction.SETTINGS_CHANGED, "BUSINESS_SETTINGS", context.businessId(), before, after);

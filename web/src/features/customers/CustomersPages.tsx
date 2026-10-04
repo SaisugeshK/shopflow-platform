@@ -19,6 +19,7 @@ import { api, ApiError } from '@/services/api'
 import type { CustomerDetail, CustomerSummary, Invoice, LedgerEntry, Order, Payment } from '@/services/types'
 import { useCan } from '@/stores/auth'
 import { date, dateTime, money, titleCase } from '@/utils/format'
+import { CustomerTradeCards } from '@/features/trade/TradeParts'
 
 /** O13/AD04 Customers. */
 export function CustomersPage() {
@@ -208,6 +209,7 @@ export function CustomerDetailPage() {
               </Card>
             </div>
           )}
+          {tab === 'overview' && <CustomerTradeCards customer={c} onChanged={refresh} />}
           {tab === 'orders' && <CustomerOrders customerId={c.id} />}
           {tab === 'invoices' && <CustomerInvoices customerId={c.id} />}
           {tab === 'payments' && <CustomerPayments customerId={c.id} />}

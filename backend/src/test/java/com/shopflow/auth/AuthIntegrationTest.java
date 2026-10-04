@@ -43,6 +43,9 @@ class AuthIntegrationTest extends IntegrationTest {
         JsonNode body = verify(mobile, r.path("requestId").asString(), code(mobile), 200).path("data");
         assertThat(body.path("registrationRequired").asBoolean()).isFalse();
         assertThat(body.path("user").path("role").asString()).isEqualTo("OWNER");
+        // Tenant branding (§0B.10): the session carries the business name and id for the navigation header.
+        assertThat(body.path("user").path("business").path("name").asString()).isNotBlank();
+        assertThat(body.path("user").path("business").path("id").asString()).isEqualTo(TestData.BUSINESS.toString());
         assertThat(body.path("accessToken").asString()).isNotBlank();
         assertThat(body.path("refreshToken").asString()).isNotBlank();
     }

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import { View } from 'react-native'
-import { LineEditor, type EditLine } from '@/components/admin/LineEditor'
+import { LineEditor, lineProblem, newLine, type EditLine } from '@/components/admin/LineEditor'
 import { DateInput, isValidDate, ProductPickerButton } from '@/components/admin/Pickers'
 import { RequirePermission } from '@/components/admin/RequirePermission'
 import { Button } from '@/components/ui/Button'
@@ -30,7 +30,14 @@ export default function PurchaseFormScreen() {
     mutationFn: (post: boolean) => api.post<Purchase>('/api/v1/purchases', {
       supplierId, purchaseDate, supplierInvoiceNumber: supplierInvoiceNumber || undefined, supplierInvoiceDate: supplierInvoiceDate || undefined,
       notes: notes || undefined, post,
-      items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity, rate: l.rate, discountPercent: l.discountPercent || '0' })),
+      items: lines.map((l) => ({
+        productId: l.product.id, quantity: l.quantity, rate: l.rate, discountPercent: l.discountPercent || '0',
+        unit: l.unit !== l.product.unit ? l.unit : undefined,
+        batchNumber: l.product.trackBatches ? l.batchNumber.trim() : undefined,
+        mfgDate: l.product.trackBatches && l.mfgDate ? l.mfgDate : undefined,
+        expiryDate: l.product.trackBatches && l.expiryDate ? l.expiryDate : undefined,
+        serialNumbers: l.product.trackSerials ? l.serials : undefined,
+      })),
     }),
     onSuccess: (p) => {
       toast.success(p.status === 'POSTED' ? 'Purchase posted — stock received' : 'Purchase saved as draft', p.purchaseNumber)
@@ -40,7 +47,7 @@ export default function PurchaseFormScreen() {
     },
   })
   const err = save.error instanceof ApiError ? save.error : null
-  const valid = !!supplierId && isValidDate(purchaseDate) && (!supplierInvoiceDate || isValidDate(supplierInvoiceDate)) && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0 && l.rate !== '' && Number(l.rate) >= 0)
+  const valid = !!supplierId && isValidDate(purchaseDate) && (!supplierInvoiceDate || isValidDate(supplierInvoiceDate)) && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0 && l.rate !== '' && Number(l.rate) >= 0 && !lineProblem(l, 'purchase'))
   const update = (i: number, patch: Partial<EditLine>) => setLines(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   return (
     <RequirePermission anyOf={['PURCHASE_WRITE']}>
@@ -63,9 +70,10 @@ export default function PurchaseFormScreen() {
         </Card>
         <Card title={`Items · ${lines.length}`}>
           <View style={{ gap: 10 }}>
-            <ProductPickerButton exclude={lines.map((l) => l.product.id)} onPick={(p) => setLines([...lines, { product: p, quantity: '1', rate: String(p.purchasePrice), discountPercent: '0' }])} />
+            <ProductPickerButton exclude={lines.filter((l) => !l.product.trackBatches && l.product.units.length === 0).map((l) => l.product.id)}
+              onPick={(p) => setLines([...lines, { ...newLine(p, String(p.purchasePrice)), discountPercent: '0' }])} />
             {lines.length === 0 ? <EmptyState icon="package" title="No items yet" description="Search and add the products you received." /> : lines.map((l, i) => (
-              <LineEditor key={l.product.id} line={l} onChange={(patch) => update(i, patch)} onRemove={() => setLines(lines.filter((_, idx) => idx !== i))} />
+              <LineEditor key={l.key} line={l} mode="purchase" onChange={(patch) => update(i, patch)} onRemove={() => setLines(lines.filter((_, idx) => idx !== i))} />
             ))}
           </View>
         </Card>

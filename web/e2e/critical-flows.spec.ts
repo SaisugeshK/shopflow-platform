@@ -19,7 +19,7 @@ test.describe.serial('order to cash', () => {
     await expect(page.getByText('Added to cart')).toBeVisible()
 
     await page.goto('/shop/cart')
-    await expect(page.getByText('Assam Tea 1kg')).toBeVisible()
+    await expect(page.getByText('Assam Tea 1kg').first()).toBeVisible()
     await page.getByRole('button', { name: 'Proceed to checkout' }).click()
     await page.getByLabel(/Cash on delivery/).check()
     await page.getByRole('button', { name: 'Place order' }).click()

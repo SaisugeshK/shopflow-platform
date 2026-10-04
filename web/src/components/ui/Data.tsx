@@ -62,6 +62,8 @@ export interface Column<T> {
   sortKey?: string
   className?: string
   footer?: ReactNode
+  /** Hidden on tablet widths to keep the table readable (§0B.11). */
+  priority?: 'low'
 }
 
 interface DataTableProps<T> {
@@ -90,7 +92,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, sort, onSortCh
                 <th
                   key={c.key}
                   scope="col"
-                  className={clsx(c.align === 'right' && 'right', c.sortKey && onSortChange && 'sortable')}
+                  className={clsx(c.align === 'right' && 'right', c.sortKey && onSortChange && 'sortable', c.priority === 'low' && 'col-low')}
                   aria-sort={active ? (sortDir === 'desc' ? 'descending' : 'ascending') : undefined}
                   onClick={() => c.sortKey && onSortChange?.(`${c.sortKey},${active && sortDir !== 'desc' ? 'desc' : 'asc'}`)}
                 >
@@ -113,7 +115,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, sort, onSortCh
               tabIndex={onRowClick ? 0 : undefined}
             >
               {columns.map((c) => (
-                <td key={c.key} className={clsx(c.align === 'right' && 'right num', c.className)}>
+                <td key={c.key} data-label={c.header || undefined} className={clsx(c.align === 'right' && 'right num', c.className, c.priority === 'low' && 'col-low', !c.header && 'cell-actions')}>
                   {c.render(row)}
                 </td>
               ))}
@@ -186,6 +188,8 @@ const STATUS_TONES: Record<string, string> = {
   COMPLETED: 'success', PAID: 'success', CAPTURED: 'success', ACTIVE: 'success', IN_STOCK: 'success',
   CANCELLED: 'danger', REJECTED: 'danger', FAILED: 'danger', DELIVERY_FAILED: 'danger', BLOCKED: 'danger', OUT_OF_STOCK: 'danger',
   CREDIT: 'warning', PARTIALLY_PAID: 'warning', LOW_STOCK: 'warning', REFUNDED: 'neutral', INACTIVE: 'neutral', NOT_REQUIRED: 'neutral',
+  QUOTED: 'warning', COUNTERED: 'purple', PARTIALLY_RECEIVED: 'teal', RECEIVED: 'success', CLOSED: 'neutral', EXPIRED: 'neutral', OPEN: 'neutral',
+  ISSUED: 'accent', INVOICED: 'success', CONVERTED: 'success', PARTIAL: 'teal',
 }
 
 export function StatusBadge({ status }: { status: string }) {
@@ -228,12 +232,12 @@ export function Timeline({ steps }: { steps: TimelineStep[] }) {
 export function PageHeader({ title, subtitle, actions, breadcrumb }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; breadcrumb?: ReactNode }) {
   return (
     <div className="page-header">
-      <div className="grow">
+      <div className="page-header-title">
         {breadcrumb && <div className="breadcrumb">{breadcrumb}</div>}
         <h1>{title}</h1>
         {subtitle && <div className="subtitle">{subtitle}</div>}
       </div>
-      {actions && <div className="row">{actions}</div>}
+      {actions && <div className="row page-header-actions">{actions}</div>}
     </div>
   )
 }

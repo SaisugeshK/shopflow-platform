@@ -68,7 +68,7 @@ public class CatalogController {
                                                   @RequestParam(required = false) String sort) {
         UUID customerId = customers.currentApprovedCustomer().getId();
         var pageable = PageQuery.of(page, pageSize, sort, java.util.Map.of("name", "name", "price", "sellingPrice"), Sort.by("name"));
-        Page<Product> result = products.search(q, categoryId, true, featured, pageable);
+        Page<Product> result = products.search(q, categoryId, true, featured, true, pageable);
         Set<UUID> activeCategories = activeCategoryIds();
         List<Product> visible = result.getContent().stream().filter(p -> activeCategories.contains(p.getCategoryId())).toList();
         return ApiResponse.page(new PageImpl<>(products.toCatalog(visible, customerId), pageable, result.getTotalElements()));
@@ -79,7 +79,7 @@ public class CatalogController {
     public ApiResponse<CatalogProduct> get(@PathVariable UUID id) {
         UUID customerId = customers.currentApprovedCustomer().getId();
         Product p = products.get(id);
-        if (!p.isActive() || !activeCategoryIds().contains(p.getCategoryId())) {
+        if (!p.isActive() || p.isVariantGroup() || !activeCategoryIds().contains(p.getCategoryId())) {
             throw new BusinessException(ErrorCode.PRODUCT_INACTIVE, "This product is not available");
         }
         return ApiResponse.ok(products.toCatalog(List.of(p), customerId).getFirst());

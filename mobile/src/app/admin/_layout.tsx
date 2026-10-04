@@ -1,4 +1,5 @@
 import { Redirect, Stack } from 'expo-router'
+import { homeFor } from '@/features/session'
 import { useAuthStore } from '@/store/auth'
 import { colors } from '@/theme/tokens'
 
@@ -6,7 +7,7 @@ import { colors } from '@/theme/tokens'
 export default function AdminLayout() {
   const user = useAuthStore((s) => s.user)
   if (!user) return <Redirect href="/login" />
-  if (user.role === 'CUSTOMER') return <Redirect href="/shop" />
+  if (user.role !== 'OWNER' && user.role !== 'ADMIN') return <Redirect href={homeFor(user.role, user.customer?.status)} />
   return (
     <Stack
       screenOptions={{
@@ -44,6 +45,24 @@ export default function AdminLayout() {
       <Stack.Screen name="users" options={{ title: 'Users' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="audit" options={{ title: 'Audit logs' }} />
+      <Stack.Screen name="daily-rates" options={{ title: 'Daily rates' }} />
+      <Stack.Screen name="purchase-orders" options={{ title: 'Purchase orders' }} />
+      <Stack.Screen name="purchase-order-new" options={{ title: 'New purchase order' }} />
+      <Stack.Screen name="purchase-order/[id]" options={{ title: 'Purchase order' }} />
+      <Stack.Screen name="schemes" options={{ title: 'Schemes' }} />
+      <Stack.Screen name="batches" options={{ title: 'Batches & expiry' }} />
+      <Stack.Screen name="serials" options={{ title: 'Serial numbers' }} />
+      <Stack.Screen name="quotations" options={{ title: 'Quotations' }} />
+      <Stack.Screen name="quotation-new" options={{ title: 'New quotation' }} />
+      <Stack.Screen name="quotation/[id]" options={{ title: 'Quotation' }} />
+      <Stack.Screen name="delivery-challans" options={{ title: 'Delivery challans' }} />
+      <Stack.Screen name="challan-new" options={{ title: 'New delivery challan' }} />
+      <Stack.Screen name="delivery-challan/[id]" options={{ title: 'Delivery challan' }} />
+      <Stack.Screen name="job-work/index" options={{ title: 'Job work' }} />
+      <Stack.Screen name="job-work/[id]" options={{ title: 'Job work' }} />
+      <Stack.Screen name="agents" options={{ title: 'Agents & commission' }} />
+      <Stack.Screen name="projects" options={{ title: 'Projects / sites' }} />
+      <Stack.Screen name="branches" options={{ title: 'Branches & transfers' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
     </Stack>
   )

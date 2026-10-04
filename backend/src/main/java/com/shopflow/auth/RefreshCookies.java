@@ -36,8 +36,7 @@ class RefreshCookies {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie(result.rawRefreshToken(),
                 Duration.between(Instant.now(), result.refreshExpiresAt())).toString());
         if ("web".equalsIgnoreCase(clientType)) {
-            return new AuthResponse(body.registrationRequired(), body.accessToken(), body.accessTokenExpiresAt(), null,
-                    body.refreshTokenExpiresAt(), body.registrationToken(), body.registrationTokenExpiresAt(), body.user());
+            return body.withoutRefreshToken();
         }
         return body;
     }

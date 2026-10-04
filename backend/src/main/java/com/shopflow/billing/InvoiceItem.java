@@ -25,6 +25,16 @@ public class InvoiceItem {
     @JoinColumn(name = "invoice_id")
     private Invoice invoice;
     private int lineNumber;
+    /** Base (stock) units per {@link #unit} — 1 for the product's own unit (§0B.7). */
+    private BigDecimal unitFactor = BigDecimal.ONE;
+    /** A free-goods line from a buy-X-get-Y scheme (rate 0). */
+    private boolean freeItem;
+    private UUID schemeId;
+    private String schemeName;
+    /** Serial numbers sold on this line, comma separated. */
+    private String serialNumbers;
+    /** Batches (and expiry) the stock came from. */
+    private String batchDetails;
     @Column(nullable = false)
     private UUID productId;
     private UUID orderItemId;

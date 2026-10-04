@@ -17,7 +17,7 @@ export async function login(page: Page, mobile10: string) {
     await page.waitForTimeout((seconds + 1) * 1000)
   }
   await page.getByTestId('otp-input').fill((await demo.textContent())!.trim())
-  await page.waitForURL(/\/(admin|shop|registration-status|register)/)
+  await page.waitForURL(/\/(admin|shop|registration-status|register|supplier|platform)/)
 }
 
 /** In-app navigation (the browser build keeps the session in memory, so a full page load would sign out). */

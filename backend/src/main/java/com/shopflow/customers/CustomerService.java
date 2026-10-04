@@ -73,12 +73,15 @@ public class CustomerService {
     private final AuditService audit;
     private final NamedParameterJdbcTemplate jdbc;
 
+    private final com.shopflow.saas.PlanLimits limits;
+
     public CustomerService(CustomerRepository customers, CustomerAddressRepository addresses,
                            CustomerCreditProfileRepository creditProfiles, CustomerLedgerRepository ledgerRepository,
                            CreditService creditService, UserRepository users, RoleRepository roles,
                            DocumentSequenceService sequences, BusinessContext businessContext,
                            BusinessSettingsService settings, SessionService sessions,
-                           NotificationService notifications, AuditService audit, NamedParameterJdbcTemplate jdbc) {
+                           NotificationService notifications, AuditService audit, NamedParameterJdbcTemplate jdbc, com.shopflow.saas.PlanLimits limits) {
+        this.limits = limits;
         this.customers = customers;
         this.addresses = addresses;
         this.creditProfiles = creditProfiles;
@@ -100,6 +103,7 @@ public class CustomerService {
     /** Self-registration after OTP verification. The account starts PENDING_APPROVAL (§4.2). */
     @Transactional
     public Customer register(String verifiedMobile, RegistrationRequest r) {
+        limits.check(com.shopflow.saas.PlanLimits.Limit.CUSTOMERS);
         if (users.existsByMobileNumber(verifiedMobile)) {
             throw new BusinessException(ErrorCode.CUSTOMER_ALREADY_REGISTERED, "This mobile number is already registered. Please sign in.");
         }
@@ -119,6 +123,7 @@ public class CustomerService {
     /** Staff-created customers are approved immediately and get a login for the mobile number. */
     @Transactional
     public Customer create(CreateCustomerRequest r) {
+        limits.check(com.shopflow.saas.PlanLimits.Limit.CUSTOMERS);
         String mobile = MobileNumbers.normalize(r.mobileNumber());
         if (users.existsByMobileNumber(mobile)
                 || customers.findByBusinessIdAndMobileNumber(businessContext.businessId(), mobile).isPresent()) {
@@ -288,7 +293,7 @@ public class CustomerService {
                 c.getMobileNumber(), c.getAlternateMobile(), c.getEmail(), c.getGstin(), c.getPan(), c.getStatus().name(),
                 c.getStatusReason(), c.getStatusChangedAt(), CurrentUser.isStaff() ? c.getNotes() : null, c.getUserId() != null,
                 listAddresses(id), CreditProfileResponse.of(creditService.profile(id)), creditService.outstanding(id),
-                c.getCreatedAt(), c.getUpdatedAt());
+                c.getCreatedAt(), c.getUpdatedAt(), CurrentUser.isStaff() ? c.getAgentId() : null);
     }
 
     public List<AddressResponse> listAddresses(UUID customerId) {

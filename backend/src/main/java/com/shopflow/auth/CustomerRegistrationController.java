@@ -51,9 +51,11 @@ public class CustomerRegistrationController {
     public ApiResponse<AuthResponse> register(@Valid @RequestBody RegistrationRequest request,
                                               @RequestHeader(value = RefreshCookies.CLIENT_TYPE_HEADER, required = false) String clientType,
                                               HttpServletResponse response) {
-        String mobile = CurrentUser.registrationJwt().map(j -> j.getClaimAsString(JwtService.CLAIM_MOBILE))
+        var jwt = CurrentUser.registrationJwt()
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Registration token required"));
-        var result = authService.register(mobile, request, RequestContext.userAgent(), RequestContext.clientIp());
+        String mobile = jwt.getClaimAsString(JwtService.CLAIM_MOBILE);
+        java.util.UUID tenantId = java.util.UUID.fromString(jwt.getClaimAsString(JwtService.CLAIM_TENANT));
+        var result = authService.register(mobile, tenantId, request, RequestContext.userAgent(), RequestContext.clientIp());
         return ApiResponse.ok(cookies.apply(result, clientType, response), "Registration submitted for approval");
     }
 

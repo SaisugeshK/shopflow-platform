@@ -43,8 +43,11 @@ public class UserService {
     private final AuditService audit;
     private final BusinessContext businessContext;
 
+    private final com.shopflow.saas.PlanLimits limits;
+
     public UserService(UserRepository users, RoleRepository roles, PermissionRepository permissions, JdbcTemplate jdbc,
-                       SessionService sessionService, AuditService audit, BusinessContext businessContext) {
+                       SessionService sessionService, AuditService audit, BusinessContext businessContext, com.shopflow.saas.PlanLimits limits) {
+        this.limits = limits;
         this.users = users;
         this.roles = roles;
         this.permissions = permissions;
@@ -60,6 +63,14 @@ public class UserService {
         user.getRoles().forEach(r -> r.getPermissions().forEach(p -> codes.add(p.getCode())));
         codes.addAll(extraPermissions(user.getId()));
         return codes;
+    }
+
+    /** The OWNER role's permission codes (roles and permissions are global reference data). */
+    public Set<String> ownerPermissions() {
+        return new TreeSet<>(jdbc.queryForList("""
+                SELECT p.code FROM role_permissions rp JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id
+                WHERE r.code = 'OWNER'
+                """, String.class));
     }
 
     public List<String> extraPermissions(UUID userId) {
@@ -93,6 +104,7 @@ public class UserService {
     /** Owners create Admin users. Owner accounts are provisioned out-of-band, never through the API. */
     @Transactional
     public User createAdmin(CreateStaffUserRequest request) {
+        limits.check(com.shopflow.saas.PlanLimits.Limit.STAFF);
         String mobile = MobileNumbers.normalize(request.mobileNumber());
         if (users.existsByMobileNumber(mobile)) {
             throw new BusinessException(ErrorCode.CONFLICT, "A user with this mobile number already exists");
@@ -188,9 +200,13 @@ public class UserService {
         }
     }
 
+    /**
+     * Last sign-in time. Written without the entity's version check: two devices signing in at the same moment must
+     * not fail each other with an optimistic-lock conflict.
+     */
     @Transactional
     public void recordLogin(User user) {
-        user.setLastLoginAt(Instant.now());
+        jdbc.update("UPDATE users SET last_login_at = ? WHERE id = ?", java.sql.Timestamp.from(Instant.now()), user.getId());
     }
 
     private static String blankToNull(String s) {

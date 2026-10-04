@@ -17,7 +17,8 @@ export function ProductPicker({ onPick, placeholder = 'Search product by name or
   const inputRef = useRef<HTMLInputElement>(null)
   const results = useQuery({
     queryKey: ['products', 'picker', q],
-    queryFn: () => api.page<Product>('/api/v1/products', { q, active: true, pageSize: 10 }),
+    // Variant groups are templates, never bought or sold themselves.
+    queryFn: () => api.page<Product>('/api/v1/products', { q, active: true, sellable: true, pageSize: 10 }),
     enabled: open,
   })
   const items = (results.data?.items ?? []).filter((p) => !exclude.includes(p.id))

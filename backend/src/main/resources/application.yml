@@ -78,8 +78,13 @@ logging:
 app:
   env: ${APP_ENV:dev}
   business:
-    # The single business this deployment serves (seeded by V2 migration).
+    # Tenant #1 (seeded by V7, tenant code "main"). Used only as the dev seed target.
     default-business-id: ${BUSINESS_ID:00000000-0000-0000-0000-000000000001}
+  tenancy:
+    # Comma-separated mobile numbers that become platform SUPER_ADMINs at startup (§0B.5).
+    super-admin-mobiles: ${PLATFORM_SUPER_ADMIN_MOBILES:}
+    # A new number signing in without a join link registers as a customer of this tenant; blank = join link required.
+    default-tenant-code: ${DEFAULT_TENANT_CODE:main}
   security:
     jwt-access-secret: ${JWT_ACCESS_SECRET:}
     jwt-refresh-secret: ${JWT_REFRESH_SECRET:}
@@ -150,7 +155,11 @@ spring:
       on-profile: dev
   flyway:
     locations: classpath:db/migration,classpath:db/devdata
+    # Dev databases already ran the V9000 seed before V8 (multi-tenancy) existed.
+    out-of-order: true
 app:
+  tenancy:
+    super-admin-mobiles: ${PLATFORM_SUPER_ADMIN_MOBILES:+919000000009}
   security:
     jwt-access-secret: ${JWT_ACCESS_SECRET:dev-only-access-secret-change-me-0123456789abcdef}
     jwt-refresh-secret: ${JWT_REFRESH_SECRET:dev-only-refresh-secret-change-me-0123456789abcdef}
@@ -160,6 +169,9 @@ app:
   otp:
     hash-secret: ${OTP_HASH_SECRET:dev-only-otp-hash-secret-change-me}
     show-in-response: ${OTP_SHOW_IN_RESPONSE:true}
+    # Development only: the end-to-end suites sign the demo users in many times in a row.
+    max-requests-per-mobile: 40
+    max-requests-per-ip: 1000
   payment:
     webhook-secret: ${PAYMENT_WEBHOOK_SECRET:dev-only-payment-webhook-secret}
   whatsapp:

@@ -13,7 +13,8 @@ import { KeyboardAwareScroll } from '@/components/ui/KeyboardAware'
 import { Text } from '@/components/ui/Text'
 import { toast } from '@/components/ui/Toast'
 import { homeFor } from '@/features/session'
-import { api, ApiError, applySession, type AuthResponse } from '@/services/api'
+import { choiceKey, TenantPicker } from '@/components/ui/TenantPicker'
+import { api, ApiError, applySession, type AuthResponse, type TenantChoice } from '@/services/api'
 import { useAuthStore } from '@/store/auth'
 import { colors, radius, shadow } from '@/theme/tokens'
 
@@ -26,8 +27,19 @@ interface Challenge {
   demoOtp?: string
 }
 
-/** A02 Mobile Login + A03 OTP Verification. New numbers continue to customer registration (§4.2). */
-export default function LoginScreen() {
+/** The business a join link (/join/{code}) belongs to: sign-in enters, or registers with, that business. */
+export interface JoinTenant {
+  tenantCode: string
+  name: string
+  city?: string
+}
+
+/**
+ * A02 Mobile Login + A03 OTP Verification. A number in several businesses picks one (§0B.4); new numbers continue to
+ * customer registration (§4.2) — for the join link's business, or the default one.
+ */
+export default function LoginScreen({ join }: { join?: JoinTenant } = {}) {
+  const [selection, setSelection] = useState<{ token: string; tenants: TenantChoice[] } | null>(null)
   const [mobile, setMobile] = useState('')
   const [otp, setOtp] = useState('')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
@@ -53,18 +65,31 @@ export default function LoginScreen() {
     },
   })
 
+  const complete = async (r: AuthResponse) => {
+    toast.clear()
+    if (r.selectionRequired) {
+      setSelection({ token: r.selectionToken!, tenants: r.tenants ?? [] })
+      return
+    }
+    if (r.registrationRequired) {
+      useAuthStore.getState().setRegistration({ token: r.registrationToken!, mobile, business: r.registrationBusiness })
+      router.replace('/register')
+      return
+    }
+    await applySession(r)
+    router.replace(homeFor(r.user!.role, r.user!.customer?.status))
+  }
+
   const verify = useMutation({
-    mutationFn: () => api.post<AuthResponse>('/api/v1/auth/otp/verify', { mobileNumber: mobile, otp, requestId: challenge!.requestId, deviceInfo: `ShopFlow ${Platform.OS}` }),
-    onSuccess: async (r) => {
-      toast.clear()
-      if (r.registrationRequired) {
-        useAuthStore.getState().setRegistration({ token: r.registrationToken!, mobile })
-        router.replace('/register')
-        return
-      }
-      await applySession(r)
-      router.replace(homeFor(r.user!.role, r.user!.customer?.status))
-    },
+    mutationFn: () => api.post<AuthResponse>('/api/v1/auth/otp/verify', {
+      mobileNumber: mobile, otp, requestId: challenge!.requestId, deviceInfo: `ShopFlow ${Platform.OS}`, tenantCode: join?.tenantCode,
+    }),
+    onSuccess: complete,
+  })
+
+  const select = useMutation({
+    mutationFn: (c: TenantChoice) => api.postWithToken<AuthResponse>('/api/v1/auth/select-tenant', selection!.token, { businessId: c.businessId }),
+    onSuccess: complete,
   })
 
   useEffect(() => {
@@ -75,6 +100,8 @@ export default function LoginScreen() {
   const mobileValid = /^[6-9]\d{9}$/.test(mobile)
   const requestError = request.error instanceof ApiError ? request.error : null
   const verifyError = verify.error instanceof ApiError ? verify.error : null
+  const selectError = select.error instanceof ApiError ? select.error : null
+  const title = join ? join.name : 'ShopFlow'
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -85,22 +112,41 @@ export default function LoginScreen() {
           {keyboardOpen ? (
             <View style={styles.heroCompact}>
               <View style={[styles.brand, styles.brandSmall]}><Feather name="shopping-bag" size={18} color={colors.white} /></View>
-              <Text variant="h2" color="white">ShopFlow</Text>
+              <Text variant="h2" color="white" numberOfLines={1}>{title}</Text>
             </View>
           ) : (
             <View style={styles.hero}>
               <View style={styles.brand}><Feather name="shopping-bag" size={22} color={colors.white} /></View>
-              <Text variant="h1" color="white">ShopFlow</Text>
-              <Text style={{ color: '#CBD5E1' }} align="center">Orders, stock, GST invoices, credit and payments — in your pocket.</Text>
+              <Text variant="h1" color="white" align="center">{title}</Text>
+              <Text style={{ color: '#CBD5E1' }} align="center">
+                {join ? `Order from ${join.name}${join.city ? `, ${join.city}` : ''}. New retailers register in one step.`
+                  : 'Orders, stock, GST invoices, credit and payments — in your pocket.'}
+              </Text>
             </View>
           )}
 
           <View style={styles.card}>
-            {!challenge ? (
+            {selection ? (
               <View style={{ gap: 16 }}>
                 <View style={{ gap: 4 }}>
-                  <Text variant="h2" accessibilityRole="header">Sign in</Text>
-                  <Text variant="small" color="muted">Enter your registered mobile number. New retailers can register with the same step.</Text>
+                  <Text variant="h2" accessibilityRole="header">Choose a business</Text>
+                  <Text variant="small" color="muted">Your number is registered with more than one business. You can switch later from the menu.</Text>
+                </View>
+                <TenantPicker choices={selection.tenants} busyKey={select.isPending ? choiceKey(select.variables!) : null} onPick={(c) => select.mutate(c)} />
+                {selectError && <Alert tone="danger">{selectError.message}</Alert>}
+                <Pressable accessibilityRole="button" onPress={() => { setSelection(null); setChallenge(null) }} style={styles.back} hitSlop={8}>
+                  <Feather name="arrow-left" size={16} color={colors.primary} />
+                  <Text variant="small" color="primary" weight="600">Use another number</Text>
+                </Pressable>
+              </View>
+            ) : !challenge ? (
+              <View style={{ gap: 16 }}>
+                <View style={{ gap: 4 }}>
+                  <Text variant="h2" accessibilityRole="header">{join ? `Sign in to ${join.name}` : 'Sign in'}</Text>
+                  <Text variant="small" color="muted">
+                    {join ? 'Enter your mobile number. If you are new to this shop, you can register with the same step.'
+                      : 'Enter your registered mobile number. New retailers can register with the same step.'}
+                  </Text>
                 </View>
                 <Field label="Mobile number" error={requestError?.fieldError('mobileNumber')}>
                   <PhoneInput
@@ -116,6 +162,7 @@ export default function LoginScreen() {
                 </Field>
                 {requestError && !requestError.fieldError('mobileNumber') && <Alert tone="danger">{requestError.message}</Alert>}
                 <Button size="lg" block loading={request.isPending} disabled={!mobileValid} onPress={() => request.mutate()}>Send OTP</Button>
+                {!join && <Button variant="ghost" onPress={() => router.push('/signup')}>Run a business? Get ShopFlow</Button>}
               </View>
             ) : (
               <View style={{ gap: 16 }}>

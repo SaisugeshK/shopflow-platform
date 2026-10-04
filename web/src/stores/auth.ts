@@ -1,17 +1,24 @@
 import { create } from 'zustand'
-import type { Me } from '@/services/api'
+import type { BusinessInfo, Me } from '@/services/api'
 
 /**
  * Session state. The access token lives only in memory; the refresh token is an HttpOnly cookie the page cannot read,
  * so a reload restores the session through /auth/refresh.
  */
+/** Single-use token for completing customer registration, and the business it registers with. */
+interface Registration {
+  token: string
+  mobile: string
+  business?: BusinessInfo
+}
+
 interface AuthState {
   accessToken: string | null
   user: Me | null
   initialized: boolean
-  /** Single-use token for completing customer registration; memory only. */
-  registration: { token: string; mobile: string } | null
-  setRegistration: (r: { token: string; mobile: string } | null) => void
+  /** Memory only. */
+  registration: Registration | null
+  setRegistration: (r: Registration | null) => void
   setSession: (token: string, user: Me) => void
   setUser: (user: Me) => void
   clear: () => void
@@ -34,4 +41,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 export function useCan(permission: string): boolean {
   return useAuthStore((s) => s.user?.permissions.includes(permission) ?? false)
+}
+
+/** Whether the business has a module switched on (§0B.6). The server enforces the same rule. */
+export function useModule(code: string): boolean {
+  return useAuthStore((s) => s.user?.modules?.includes(code) ?? false)
 }

@@ -6,14 +6,19 @@ import { Button, IconButton } from '@/components/ui/Button'
 import { Badge, Card, DataTable, KeyValue, PageHeader, Pagination, StatusBadge, TaxBreakdown } from '@/components/ui/Data'
 import { Alert, EmptyState, QueryState, Spinner } from '@/components/ui/Feedback'
 import { Field, Input, PriceInput, SearchInput, Select, Textarea } from '@/components/ui/Form'
+import { PageActions } from '@/components/ui/PageActions'
 import { ConfirmDialog, Modal } from '@/components/ui/Overlay'
 import { useToast } from '@/components/ui/Toast'
 import { RecordPaymentDialog } from '@/features/payments/RecordPaymentDialog'
 import { ProductPicker } from '@/features/products/ProductPicker'
+import { unitFactor, unitOptions } from '@/features/products/ProductOptions'
+import { ChargesEditor, ChargesTable, LineDescription, SerialChooser } from './LineExtras'
+import { InvoiceTradeCard, ProjectChooser } from '@/features/trade/TradeParts'
+import type { ChargeLine } from './LineExtras'
 import { useListParams } from '@/hooks/useListParams'
 import { api, ApiError, download, newIdempotencyKey } from '@/services/api'
 import type { CustomerSummary, Invoice, Party, Product, WhatsAppMessage } from '@/services/types'
-import { useCan } from '@/stores/auth'
+import { useCan, useModule } from '@/stores/auth'
 import { date, dateTime, money, quantity, titleCase, today } from '@/utils/format'
 
 /** O20/AD09 Invoice list. */
@@ -57,7 +62,11 @@ export function InvoicesPage() {
   )
 }
 
-interface Line { product: Product; quantity: string; rate: string; discountPercent: string }
+interface Line { key: string; product: Product; quantity: string; rate: string; discountPercent: string; unit: string; serials: string[] }
+
+function useAllowedRates() {
+  return useQuery({ queryKey: ['tax-settings'], queryFn: () => api.get<{ allowedGstRates: number[]; defaultGstRate: number }>('/api/v1/business/tax-settings'), staleTime: 300_000 })
+}
 
 /** O19/AD10 Admin-created invoice (§22.2). The backend prices, taxes and totals the invoice. */
 export function CreateInvoicePage() {
@@ -71,12 +80,20 @@ export function CreateInvoicePage() {
   const [lines, setLines] = useState<Line[]>([])
   const [header, setHeader] = useState({ transport: '', vehicleNumber: '', destination: '', buyerOrderNumber: '', notes: '' })
   const [draft, setDraft] = useState<Invoice | null>(null)
+  const [charges, setCharges] = useState<ChargeLine[]>([])
+  const [projectId, setProjectId] = useState('')
+  const chargesOn = useModule('CHARGES')
+  const rates = useAllowedRates()
   const key = useMemo(() => newIdempotencyKey(), [draft?.id])
   const customers = useQuery({ queryKey: ['customers', 'picker', search], queryFn: () => api.page<CustomerSummary>('/api/v1/customers', { q: search, status: 'APPROVED', pageSize: 20 }) })
   const create = useMutation({
     mutationFn: () => api.post<Invoice>('/api/v1/invoices', {
-      customerId, paymentType, invoiceDate, ...Object.fromEntries(Object.entries(header).filter(([, v]) => v)),
-      items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity, rate: l.rate || undefined, discountPercent: l.discountPercent || undefined })),
+      customerId, paymentType, invoiceDate, projectId: projectId || undefined, ...Object.fromEntries(Object.entries(header).filter(([, v]) => v)),
+      items: lines.map((l) => ({
+        productId: l.product.id, quantity: l.quantity, rate: l.rate || undefined, discountPercent: l.discountPercent || undefined,
+        unit: l.unit !== l.product.unit ? l.unit : undefined, serialNumbers: l.product.trackSerials ? l.serials : undefined,
+      })),
+      charges: chargesOn ? charges.filter((c) => Number(c.amount) > 0).map((c) => ({ type: c.type, description: c.description || undefined, amount: c.amount, taxRate: c.taxRate })) : undefined,
     }),
     onSuccess: (inv) => setDraft(inv),
   })
@@ -91,7 +108,8 @@ export function CreateInvoicePage() {
   const anyError = create.error ?? generate.error
   const err = anyError instanceof ApiError ? anyError : null
   const update = (i: number, patch: Partial<Line>) => { setLines(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); setDraft(null) }
-  const valid = customerId && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0)
+  const valid = customerId && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0
+    && (!l.product.trackSerials || l.serials.length === Number(l.quantity) * unitFactor(l.product, l.unit)))
 
   return (
     <div className="stack">
@@ -101,27 +119,44 @@ export function CreateInvoicePage() {
         <div className="form-grid">
           <Field label="Find customer" htmlFor="inv-cs"><Input id="inv-cs" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, code or mobile" /></Field>
           <Field label="Customer" htmlFor="inv-c" required>
-            <Select id="inv-c" value={customerId} onChange={(e) => { setCustomerId(e.target.value); setDraft(null) }} placeholder="Select customer"
+            <Select id="inv-c" value={customerId} onChange={(e) => { setCustomerId(e.target.value); setProjectId(''); setDraft(null) }} placeholder="Select customer"
               options={(customers.data?.items ?? []).map((c) => ({ value: c.id, label: `${c.shopName} (${c.customerCode})` }))} />
           </Field>
           <Field label="Payment type" htmlFor="inv-pt" required>
             <Select id="inv-pt" value={paymentType} onChange={(e) => { setPaymentType(e.target.value); setDraft(null) }} options={['CASH', 'UPI', 'BANK_TRANSFER', 'CREDIT', 'OTHER'].map((v) => ({ value: v, label: v === 'CREDIT' ? 'Credit bill' : titleCase(v) }))} />
           </Field>
+          <ProjectChooser idPrefix="inv" customerId={customerId} value={projectId} onChange={(id) => { setProjectId(id); setDraft(null) }} />
           <Field label="Invoice date" htmlFor="inv-d" hint="Back-dating requires Owner permission"><Input id="inv-d" type="date" max={today()} value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setDraft(null) }} /></Field>
         </div>
       </Card>
       <Card title="Items" padded={false}>
-        <div style={{ padding: 16 }}><ProductPicker exclude={lines.map((l) => l.product.id)} onPick={(p) => { setLines([...lines, { product: p, quantity: '1', rate: '', discountPercent: '' }]); setDraft(null) }} /></div>
+        <div style={{ padding: 16 }}><ProductPicker exclude={lines.filter((l) => l.product.units.length === 0).map((l) => l.product.id)}
+          onPick={(p) => { setLines([...lines, { key: `${p.id}-${Date.now()}`, product: p, quantity: '1', rate: '', discountPercent: '', unit: p.unit, serials: [] }]); setDraft(null) }} /></div>
         {lines.length === 0 ? <EmptyState title="No items" description="Search and add products." /> : (
-          <DataTable rows={lines.map((l, i) => ({ ...l, i }))} rowKey={(l) => l.product.id} columns={[
-            { key: 'p', header: 'Product', render: (l) => <div><div style={{ fontWeight: 600 }}>{l.product.name}</div><div className="xs muted">{l.product.sku} · {l.product.gstRate}% GST · {quantity(l.product.available)} available</div></div> },
-            { key: 'q', header: 'Qty', align: 'right', render: (l) => <Input aria-label={`Quantity of ${l.product.name}`} type="number" min={0} step="any" style={{ width: 90, textAlign: 'right' }} value={l.quantity} onChange={(e) => update(l.i, { quantity: e.target.value })} /> },
+          <DataTable rows={lines.map((l, i) => ({ ...l, i }))} rowKey={(l) => l.key} columns={[
+            { key: 'p', header: 'Product', render: (l) => (
+              <div className="stack-sm">
+                <div><div style={{ fontWeight: 600 }}>{l.product.name}</div><div className="xs muted">{l.product.sku} · {l.product.gstRate}% GST · {quantity(l.product.available)} {l.product.unit} available{l.product.trackBatches ? ' · batches sold first-expiry-first-out' : ''}</div></div>
+                {l.product.trackSerials && Number(l.quantity) > 0 && (
+                  <SerialChooser productId={l.product.id} count={Number(l.quantity) * unitFactor(l.product, l.unit)} value={l.serials} onChange={(serials) => update(l.i, { serials })} />
+                )}
+              </div>
+            ) },
+            { key: 'q', header: 'Qty', align: 'right', render: (l) => (
+              <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                <Input aria-label={`Quantity of ${l.product.name}`} type="number" min={0} step={l.product.decimalQuantity ? 'any' : 1} style={{ width: 80, textAlign: 'right' }} value={l.quantity} onChange={(e) => update(l.i, { quantity: e.target.value, serials: [] })} />
+                {l.product.units.length > 0 ? (
+                  <Select aria-label={`Unit of ${l.product.name}`} style={{ width: 110 }} value={l.unit} onChange={(e) => update(l.i, { unit: e.target.value, serials: [] })} options={unitOptions(l.product)} />
+                ) : <span className="xs muted">{l.product.unit}</span>}
+              </div>
+            ) },
             { key: 'r', header: 'Rate', align: 'right', render: (l) => <PriceInput aria-label={`Rate of ${l.product.name}`} placeholder="Customer price" style={{ width: 150 }} value={l.rate} onChange={(e) => update(l.i, { rate: e.target.value })} /> },
             { key: 'd', header: 'Disc %', align: 'right', render: (l) => <Input aria-label={`Discount for ${l.product.name}`} type="number" min={0} max={100} step="0.01" style={{ width: 80, textAlign: 'right' }} value={l.discountPercent} onChange={(e) => update(l.i, { discountPercent: e.target.value })} /> },
             { key: 'x', header: '', render: (l) => <IconButton label={`Remove ${l.product.name}`} onClick={() => { setLines(lines.filter((_, idx) => idx !== l.i)); setDraft(null) }}><Trash2 size={16} /></IconButton> },
           ]} />
         )}
       </Card>
+      {chargesOn && <ChargesEditor value={charges} onChange={(c) => { setCharges(c); setDraft(null) }} rates={rates.data?.allowedGstRates ?? [0, 5, 12, 18, 28]} />}
       <Card title="Dispatch details (optional)">
         <div className="form-grid">
           <Field label="Buyer's order no." htmlFor="h-bo"><Input id="h-bo" value={header.buyerOrderNumber} onChange={(e) => setHeader({ ...header, buyerOrderNumber: e.target.value })} /></Field>
@@ -132,8 +167,17 @@ export function CreateInvoicePage() {
         </div>
       </Card>
       {draft && (
-        <Card title={`Draft calculated by server · ${draft.interState ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}`}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><div style={{ width: 'min(360px, 100%)' }}><TaxBreakdown t={draft} /></div></div>
+        <Card title={`Draft calculated by server · ${draft.interState ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}`} padded={false}>
+          {(draft.items ?? []).some((i) => i.freeItem || i.schemeName) && (
+            <DataTable rows={draft.items ?? []} rowKey={(i) => i.id} caption="Lines with schemes" columns={[
+              { key: 'p', header: 'Line', render: (i) => <LineDescription i={i} /> },
+              { key: 'q', header: 'Qty', align: 'right', render: (i) => `${quantity(i.quantity)} ${i.unit}` },
+              { key: 'd', header: 'Disc', align: 'right', render: (i) => (i.discountAmount > 0 ? `${i.discountPercent}%` : '—') },
+              { key: 'a', header: 'Amount', align: 'right', render: (i) => money(i.lineTotal) },
+            ]} />
+          )}
+          <ChargesTable charges={draft.charges} />
+          <div className="card-body" style={{ display: 'flex', justifyContent: 'flex-end' }}><div style={{ width: 'min(360px, 100%)' }}><TaxBreakdown t={draft} /></div></div>
         </Card>
       )}
       {err && <Alert tone="danger">{err.message}</Alert>}
@@ -212,14 +256,17 @@ export function InvoiceDetailPage() {
             title={<span className="row">{inv.invoiceNumber ?? 'Draft invoice'} <StatusBadge status={inv.status} />{inv.overdue && <Badge tone="danger">Overdue</Badge>}</span>}
             subtitle={`${inv.paymentType === 'CREDIT' ? 'Credit bill' : titleCase(inv.paymentType)} · ${date(inv.invoiceDate)}${inv.orderNumber ? ` · Order ${inv.orderNumber}` : ''}`}
             actions={
-              <>
-                <Button variant="secondary" icon={<Eye size={16} />} onClick={openPreview}>Preview</Button>
-                <Button variant="secondary" icon={<Download size={16} />} onClick={() => download(`/api/v1/invoices/${inv.id}/pdf`, undefined, 'invoice.pdf')}>PDF</Button>
-                {canWrite && inv.status === 'DRAFT' && <Button icon={<CircleCheck size={16} />} loading={generate.isPending} onClick={() => generate.mutate()}>Generate</Button>}
-                {canWrite && !['DRAFT', 'CANCELLED'].includes(inv.status) && <Button variant="secondary" icon={<MessageCircle size={16} />} loading={send.isPending} onClick={() => send.mutate()}>Send WhatsApp</Button>}
-                {canPay && inv.outstanding > 0 && <Button icon={<Wallet size={16} />} onClick={() => setDialog('payment')}>Record payment</Button>}
-                {canWrite && inv.status !== 'CANCELLED' && <Button variant="ghost" icon={<XCircle size={16} />} onClick={() => setDialog('cancel')}>Cancel</Button>}
-              </>
+              <PageActions
+                primary={canWrite && inv.status === 'DRAFT'
+                  ? { key: 'generate', label: 'Generate', icon: <CircleCheck size={16} />, loading: generate.isPending, onClick: () => generate.mutate() }
+                  : { key: 'payment', label: 'Record payment', icon: <Wallet size={16} />, show: canPay && inv.outstanding > 0, onClick: () => setDialog('payment') }}
+                actions={[
+                  { key: 'preview', label: 'Preview', icon: <Eye size={16} />, onClick: openPreview },
+                  { key: 'pdf', label: 'PDF', icon: <Download size={16} />, onClick: () => download(`/api/v1/invoices/${inv.id}/pdf`, undefined, 'invoice.pdf') },
+                  { key: 'send', label: 'Send WhatsApp', icon: <MessageCircle size={16} />, show: canWrite && !['DRAFT', 'CANCELLED'].includes(inv.status), loading: send.isPending, onClick: () => send.mutate() },
+                  { key: 'cancel', label: 'Cancel', icon: <XCircle size={16} />, variant: 'ghost', show: canWrite && inv.status !== 'CANCELLED', onClick: () => setDialog('cancel') },
+                ]}
+              />
             }
           />
           {inv.status === 'CANCELLED' && <Alert tone="danger" title="Cancelled">{inv.cancelReason}</Alert>}
@@ -235,7 +282,7 @@ export function InvoiceDetailPage() {
               <Card title="Items" padded={false}>
                 <DataTable rows={inv.items ?? []} rowKey={(i) => i.id} columns={[
                   { key: 'n', header: '#', render: (i) => i.lineNumber },
-                  { key: 'p', header: 'Description', render: (i) => <div><div style={{ fontWeight: 600 }}>{i.productName}</div>{i.description && <div className="xs muted">{i.description}</div>}</div> },
+                  { key: 'p', header: 'Description', render: (i) => <LineDescription i={i} /> },
                   { key: 'h', header: 'HSN', render: (i) => i.hsnCode ?? '—' },
                   { key: 'q', header: 'Qty', align: 'right', render: (i) => `${quantity(i.quantity)} ${i.unit}` },
                   { key: 'r', header: 'Rate', align: 'right', render: (i) => money(i.rate) },
@@ -245,6 +292,7 @@ export function InvoiceDetailPage() {
                   { key: 'a', header: 'Amount', align: 'right', render: (i) => money(i.lineTotal) },
                   { key: 'rt', header: 'Returned', align: 'right', render: (i) => (i.returnedQuantity > 0 ? quantity(i.returnedQuantity) : '') },
                 ]} />
+                <ChargesTable charges={inv.charges} />
                 <div className="card-body grid-2">
                   <div className="stack-sm small">
                     <strong>Amount in words</strong>
@@ -252,7 +300,7 @@ export function InvoiceDetailPage() {
                     {inv.taxSummary?.length ? (
                       <table className="table" style={{ marginTop: 8 }}>
                         <thead><tr><th>HSN</th><th className="right">Taxable</th><th className="right">Rate</th><th className="right">Tax</th></tr></thead>
-                        <tbody>{inv.taxSummary.map((t) => <tr key={`${t.hsnCode}-${t.taxRate}`}><td>{t.hsnCode ?? '—'}</td><td className="right num">{money(t.taxableAmount)}</td><td className="right">{t.taxRate}%</td><td className="right num">{money(t.totalTax)}</td></tr>)}</tbody>
+                        <tbody>{inv.taxSummary.map((t) => <tr key={`${t.hsnCode}-${t.taxRate}`}><td data-label="HSN">{t.hsnCode ?? '—'}</td><td data-label="Taxable" className="right num">{money(t.taxableAmount)}</td><td data-label="Rate" className="right">{t.taxRate}%</td><td data-label="Tax" className="right num">{money(t.totalTax)}</td></tr>)}</tbody>
                       </table>
                     ) : null}
                   </div>
@@ -283,12 +331,13 @@ export function InvoiceDetailPage() {
               </Card>
               <Card title="Details">
                 <KeyValue items={[
-                  ['Source', inv.source === 'ORDER' ? 'Order' : 'Admin-created'], ['Order', inv.orderId ? <Link key="o" to={`/app/orders/${inv.orderId}`}>{inv.orderNumber}</Link> : undefined],
+                  ['Source', inv.source === 'ORDER' ? 'Order' : inv.source === 'CHALLAN' ? 'Delivery challan' : 'Admin-created'], ['Order', inv.orderId ? <Link key="o" to={`/app/orders/${inv.orderId}`}>{inv.orderNumber}</Link> : undefined],
                   ['Buyer order no.', inv.buyerOrderNumber], ['Transport', inv.transport], ['Vehicle', inv.vehicleNumber], ['Destination', inv.destination],
                   ['E-invoice', titleCase(inv.einvoiceStatus)], ['IRN', inv.irn ? <span key="i" className="mono xs">{inv.irn}</span> : undefined],
                   ['Generated', dateTime(inv.generatedAt)], ['Notes', inv.notes],
                 ]} />
               </Card>
+              <InvoiceTradeCard inv={inv} onChanged={refresh} />
               <Card title="WhatsApp delivery">
                 {messages.isLoading ? <Spinner /> : messages.data?.length ? (
                   <ul className="list-plain">

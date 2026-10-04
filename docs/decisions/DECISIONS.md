@@ -238,3 +238,101 @@ Expo SDK 57 apps draw edge-to-edge on Android, so the window is not resized when
 bottom sheet and picker now uses `KeyboardAwareScroll` / `useKeyboardOverlap`: the container measures how much of it
 the keyboard covers, pads itself by that amount (footers stay above the keyboard) and scrolls the focused input into
 view, also when focus moves between fields. It works in Expo Go (no native keyboard library needed).
+
+## D-030 GCP single-image deployment
+
+For Google Cloud Run the repo-root `Containerfile` builds the web app and copies `web/dist` into the backend's
+`classpath:/static`, so one jar serves the API and the SPA from the same origin (`SpaWebConfig` falls back to
+`index.html` for deep links; `/api`, `/actuator`, docs paths are never swallowed). Cloud SQL is reached through the
+Cloud SQL Postgres socket factory (no public DB IP). Product images use a private GCS bucket via
+`GcsStorageProvider` (`app.storage.provider=gcs`, Application Default Credentials) and are streamed through
+`/api/v1/files/public/{id}`, which had to be added to the unauthenticated endpoints (plain `<img>` tags carry no
+bearer token). The local two-container Podman stack is unchanged.
+
+## D-031 Multi-tenant SaaS with row-level security
+
+ShopFlow is sold to many businesses. The existing `businesses` table is the tenant table and `business_id` the
+tenant key. Isolation follows the shared-database, shared-schema ("pool") model: every tenant-owned table, including
+child/line tables, carries `business_id NOT NULL`, has `FORCE ROW LEVEL SECURITY`, and a policy keyed on the
+per-transaction setting `app.tenant_id`, which the application sets from the signed token. Platform code uses an
+audited `app.platform_access` flag. Application filters remain as defence in depth. A database per tenant was
+rejected for now (cost and operational overhead on one Cloud SQL instance); it can be offered later for large
+clients. Contract: architecture §0B.3.
+
+## D-032 Global identity, per-tenant memberships, one URL
+
+A mobile number is one global user. Roles live in `tenant_memberships` (one row per person per tenant), so one
+person can be a customer of several shops or a supplier to several businesses. All tenants share one URL; after OTP
+the person picks a business (auto-selected when there is only one) and `POST /auth/select-tenant` issues
+tenant-scoped tokens. Refresh tokens are bound to one tenant; switching issues new tokens. Subdomains later.
+
+*Implementation note (2026-10-04):* the identity is the OTP-verified mobile number and each `users` row is that
+number's membership in one tenant (`UNIQUE (business_id, mobile_number)`), instead of a separate
+`tenant_memberships` table. Every existing reference to `users.id` therefore stayed tenant-scoped with no data
+migration; behaviour is the same as designed. Platform admins live in `platform_admins`.
+
+## D-033 Joining a tenant
+
+Customers join a specific business through its join link/QR (`/join/{tenant_code}`) or by entering the shop code at
+registration (approval rules unchanged). Admins are invited by the Owner; suppliers are invited from their supplier
+record; the first Owner is created by the Super Admin with the tenant.
+
+## D-034 Super Admin (platform) role and console
+
+`SUPER_ADMIN` lives in `platform_admins`, not in any tenant. The first ones come from the
+`PLATFORM_SUPER_ADMIN_MOBILES` setting at startup; there is no self-promotion path. The console (web first, mobile in
+Phase 5) manages tenants, templates, module switches, suspension and platform admins under `/api/v1/platform/**`.
+Looking inside a tenant needs time-boxed, reason-logged support access that the tenant Owner can see.
+
+## D-035 Per-tenant module switches
+
+`tenant_modules` holds which modules each tenant may use (supplier portal, batch/expiry, variants, quotations, …).
+The backend returns `403 MODULE_DISABLED` for a disabled module, `/auth/me` lists enabled modules, and both clients
+hide disabled menus. Only the Super Admin changes them; changes are audited.
+
+## D-036 Industry coverage and product options
+
+One core for every trade; differences are generic, switchable options (unit conversions, decimals, variants,
+batch/expiry with first-expiry-first-out, serial/IMEI with warranty, fixed/MRP/daily-rate pricing, schemes,
+invoice charges, barcode labels) pre-set by an industry template chosen at tenant creation. Order: Grocery/FMCG,
+Textile, Construction materials first; then Electrical/Hardware, Auto spares, Footwear, Cosmetics, Stationery,
+Mobiles, Paints; Pharma last after compliance review. Jewellery and restaurants are out of scope (different
+products). Tax rates and thresholds remain settings to be validated with a tax advisor.
+
+## D-037 Purchase orders and supplier portal
+
+Purchase orders go to suppliers who sign in to a supplier portal (module `SUPPLIER_PORTAL`, requires
+`PURCHASE_ORDERS`). The supplier may change every term (rate, quantity, availability, delivery date, notes,
+substitutes, extra lines, attachments, validity); rounds of quote and counter-offer are unlimited and each is an
+immutable revision. The business accepts all or selected lines; goods receipts against accepted lines post stock
+and the supplier ledger through the existing purchase posting. Suppliers see only their own POs.
+
+## D-038 Responsive standard with automated viewport checks
+
+Every web route is checked at 360, 390, 768, 1024, 1280 and 1440 px and every mobile screen at phone and tablet
+sizes; a page that scrolls sideways or clips a heading/button fails the build. Layout rules (stacked page headers,
+"More" actions menu on phones, table→card below 900 px, low-priority columns hidden at ≤ 1100 px, full-screen
+dialogs on phones) are in architecture §0B.11.
+
+## D-039 Tenant branding
+
+Inside a tenant the UI shows that business's name and logo (web sidebar and tab title, customer shop header, mobile
+headers, workspace switcher). "ShopFlow" is the product name ("Powered by ShopFlow", sign-in, Super Admin console).
+
+## D-040 Plans, self-signup, custom domains and branches (Phase 5)
+
+- **Plans** (`plans` catalogue: Free, Starter, Growth, Enterprise) cap staff users, products, customers, generated
+  invoices per month, branches and file storage; a missing limit is unlimited. Limits are checked only when something
+  new is created (`403 PLAN_LIMIT_REACHED`); data above a lower limit stays. Only the Super Admin changes a plan.
+  Businesses that existed before V12 are on Enterprise; new ones default to Starter.
+- **Self-signup**: the owner proves the mobile number by OTP and sends the business details; nothing is created until
+  the Super Admin approves (which runs the same "Register business" path) or rejects with a reason.
+- **Custom domains**: a business may have one domain; the sign-in page opened at that domain behaves like its join
+  link. DNS/TLS are set up at deployment.
+- **Branches / warehouses** (module `BRANCHES`): stock is kept per branch. Only non-default branches have
+  `branch_stock` rows; the default (main) branch holds the rest of the total, so the existing stock totals and every
+  movement without a branch stay correct. Clients send the working branch as `X-Branch-Id`; outbound movements check
+  the branch's own stock. Transfers move stock between branches (serial-tracked products are not transferred because
+  serials have no branch).
+- **Super Admin on mobile**: businesses, plan, modules, suspension and sign-up approvals; creating a business and
+  support access stay on the web console.

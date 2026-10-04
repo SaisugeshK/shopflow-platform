@@ -6,9 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-interface BusinessRepository extends JpaRepository<Business, UUID> {
-}
-
 interface BusinessBankAccountRepository extends JpaRepository<BusinessBankAccount, UUID> {
     List<BusinessBankAccount> findByBusinessIdOrderByCreatedAtAsc(UUID businessId);
 

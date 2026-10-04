@@ -63,13 +63,15 @@ public final class BusinessDtos {
                                            int defaultCreditDays, BigDecimal defaultCreditLimit,
                                            boolean whatsappEnabled, String whatsappSender,
                                            String whatsappInvoiceTemplate, boolean notifyPush, boolean notifySms,
-                                           boolean notifyEmail, boolean notifyWhatsapp, int dataRetentionYears) {
+                                           boolean notifyEmail, boolean notifyWhatsapp, int dataRetentionYears,
+                                           boolean blockExpiredSales, int nearExpiryDays) {
         static BusinessSettingsResponse of(BusinessSettings s) {
             return new BusinessSettingsResponse(s.getCreditPolicy(), s.getCustomerCancelAllowedUntil(),
                     s.isShowStockToCustomers(), s.isGstinRequiredForCustomers(), s.isPanRequiredForCustomers(),
                     s.getPartialDeliveryInvoicePolicy(), s.getDefaultCreditDays(), s.getDefaultCreditLimit(),
                     s.isWhatsappEnabled(), s.getWhatsappSender(), s.getWhatsappInvoiceTemplate(), s.isNotifyPush(),
-                    s.isNotifySms(), s.isNotifyEmail(), s.isNotifyWhatsapp(), s.getDataRetentionYears());
+                    s.isNotifySms(), s.isNotifyEmail(), s.isNotifyWhatsapp(), s.getDataRetentionYears(),
+                    s.isBlockExpiredSales(), s.getNearExpiryDays());
         }
     }
 
@@ -82,7 +84,8 @@ public final class BusinessDtos {
                                                 Boolean whatsappEnabled, @Size(max = 40) String whatsappSender,
                                                 @Size(max = 100) String whatsappInvoiceTemplate, Boolean notifyPush,
                                                 Boolean notifySms, Boolean notifyEmail, Boolean notifyWhatsapp,
-                                                @Min(1) @Max(50) Integer dataRetentionYears) {
+                                                @Min(1) @Max(50) Integer dataRetentionYears,
+                                                Boolean blockExpiredSales, @Min(1) @Max(365) Integer nearExpiryDays) {
     }
 
     public record InvoiceSettingsResponse(String invoicePrefix, int numberPadding, long startingNumber,

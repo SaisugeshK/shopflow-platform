@@ -5,6 +5,8 @@ import com.shopflow.business.BusinessSettings.CreditPolicy;
 import com.shopflow.business.BusinessSettingsService;
 import com.shopflow.common.util.Money;
 import com.shopflow.customers.CustomerRepositories.CustomerCreditProfileRepository;
+import com.shopflow.tenancy.ModuleCode;
+import com.shopflow.tenancy.TenantModules;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,9 +28,12 @@ public class CreditService {
     private final BusinessSettingsService settings;
     private final BusinessContext businessContext;
     private final JdbcTemplate jdbc;
+    private final TenantModules modules;
 
     public CreditService(CustomerCreditProfileRepository profiles, CustomerLedgerService ledger,
-                         BusinessSettingsService settings, BusinessContext businessContext, JdbcTemplate jdbc) {
+                         BusinessSettingsService settings, BusinessContext businessContext, JdbcTemplate jdbc,
+                         TenantModules modules) {
+        this.modules = modules;
         this.profiles = profiles;
         this.ledger = ledger;
         this.settings = settings;
@@ -65,6 +70,8 @@ public class CreditService {
      */
     @Transactional(readOnly = true)
     public CreditDecision evaluate(UUID customerId, BigDecimal additionalAmount) {
+        // Credit sales are a per-tenant module (§0B.6).
+        modules.require(ModuleCode.CREDIT);
         CustomerCreditProfile profile = profile(customerId);
         if (!profile.isCreditEnabled()) {
             return new CreditDecision(Decision.NOT_ENABLED, Money.ZERO, Money.ZERO);

@@ -40,6 +40,22 @@ public class Business extends BaseEntity {
     private String termsAndConditions;
     private String authorizedSignatory;
 
+    // Tenant fields (§0B): join-link code, lifecycle and trade (industry template).
+    @Column(nullable = false)
+    private String tenantCode;
+    @Column(nullable = false)
+    private String status = "ACTIVE";
+    @Column(nullable = false)
+    private String industry = "GENERAL";
+    private String ownerName;
+    private String ownerMobile;
+    private String statusReason;
+    private UUID createdBy;
+
+    public boolean isActive() {
+        return "ACTIVE".equals(status);
+    }
+
     public String formattedAddress() {
         StringJoiner joiner = new StringJoiner(", ");
         for (String part : new String[]{addressLine1, addressLine2, city, state, pincode}) {

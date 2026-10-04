@@ -38,10 +38,15 @@ public class InventoryService {
     private final DocumentSequenceService sequences;
     private final BusinessContext businessContext;
     private final AuditService audit;
+    private final TrackingService tracking;
+    private final com.shopflow.branches.BranchResolver branches;
 
     public InventoryService(StockBalanceRepository balances, StockMovementRepository movements,
                             StockAdjustmentRepository adjustments, ProductRepository products,
-                            DocumentSequenceService sequences, BusinessContext businessContext, AuditService audit) {
+                            DocumentSequenceService sequences, BusinessContext businessContext, AuditService audit,
+                            TrackingService tracking, com.shopflow.branches.BranchResolver branches) {
+        this.tracking = tracking;
+        this.branches = branches;
         this.balances = balances;
         this.movements = movements;
         this.adjustments = adjustments;
@@ -64,11 +69,30 @@ public class InventoryService {
     public StockMovement post(UUID productId, MovementType type, BigDecimal quantity, BigDecimal unitCost,
                               String referenceType, UUID referenceId, String referenceNumber, String reason,
                               BigDecimal releaseReserved) {
+        return postTraced(productId, type, quantity, unitCost, referenceType, referenceId, referenceNumber, reason,
+                releaseReserved, null).movement();
+    }
+
+    /** A movement plus the batches/serials it used (for products that track them, §0B.7). */
+    public record TracedMovement(StockMovement movement, StockTrace.Result trace) {
+    }
+
+    /**
+     * {@link #post} with batch/serial details. For batch- or serial-tracked products the movement is also recorded
+     * against batches (first-expiry-first-out when no batch is named) or serial numbers.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TracedMovement postTraced(UUID productId, MovementType type, BigDecimal quantity, BigDecimal unitCost,
+                                     String referenceType, UUID referenceId, String referenceNumber, String reason,
+                                     BigDecimal releaseReserved, StockTrace trace) {
         BigDecimal qty = Money.qty(quantity);
         if (qty.signum() <= 0) {
             throw BusinessException.validation("quantity", "Quantity must be greater than zero");
         }
         StockBalance balance = lock(productId);
+        // Branch stock (§0B.14): the movement happens at the chosen branch; the default branch holds the remainder.
+        UUID branchId = branches.effectiveBranch();
+        branches.apply(branchId, productId, qty, type.inbound(), balance.getOnHand(), available -> insufficient(productId, available, qty));
         BigDecimal release = releaseReserved == null ? BigDecimal.ZERO : Money.min(Money.qty(releaseReserved), balance.getReserved());
         if (type.inbound()) {
             balance.setOnHand(balance.getOnHand().add(qty));
@@ -83,7 +107,41 @@ public class InventoryService {
         }
         StockMovement movement = new StockMovement(productId, type, qty, unitCost, balance.getOnHand(), referenceType,
                 referenceId, referenceNumber, reason, CurrentUser.idIfPresent().orElse(null));
-        return movements.save(movement);
+        movement.atBranch(branchId);
+        Product product = products.findById(productId).orElseThrow();
+        if (!product.isTrackBatches() && !product.isTrackSerials()) {
+            return new TracedMovement(movements.save(movement), StockTrace.Result.NONE);
+        }
+        // Tracking rows reference the movement, so it must be in the database first.
+        StockMovement saved = movements.saveAndFlush(movement);
+        return new TracedMovement(saved, tracking.apply(product, saved, trace));
+    }
+
+    /** Called when batch tracking is switched on: existing stock becomes one UNBATCHED batch. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void openUnbatchedStock(UUID productId) {
+        tracking.openUnbatched(productId, lock(productId).getOnHand());
+    }
+
+    /** Writes off what is left of a batch (e.g. expired stock) with an EXPIRY_OUT or DAMAGE_OUT movement. */
+    @Transactional
+    public StockMovement writeOffBatch(UUID productId, String batchNumber, BigDecimal quantity, boolean expired, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw BusinessException.validation("reason", "A reason is required");
+        }
+        Product product = products.findById(productId)
+                .orElseThrow(() -> BusinessException.notFound(ErrorCode.PRODUCT_NOT_FOUND, "Product"));
+        UUID referenceId = UUID.randomUUID();
+        String number = sequences.next(DocumentType.STOCK_ADJUSTMENT, businessContext.today());
+        MovementType type = expired ? MovementType.EXPIRY_OUT : MovementType.DAMAGE_OUT;
+        TracedMovement m = postTraced(productId, type, quantity, product.getPurchasePrice(), "STOCK_ADJUSTMENT", referenceId,
+                number, reason.trim(), null, StockTrace.fromBatch(batchNumber, null));
+        adjustments.save(new StockAdjustment(referenceId, businessContext.businessId(), number, productId,
+                expired ? MovementType.DAMAGE_OUT : type, m.movement().getQuantity(), reason.trim() + " (batch " + batchNumber + ")",
+                m.movement().getId(), CurrentUser.id()));
+        audit.record(AuditAction.STOCK_ADJUSTED, "PRODUCT", productId, null, Map.of("adjustmentNumber", number, "type", type,
+                "batch", batchNumber, "quantity", m.movement().getQuantity(), "reason", reason.trim()));
+        return m.movement();
     }
 
     /** Reserves available stock for an order (§76 order creation). */

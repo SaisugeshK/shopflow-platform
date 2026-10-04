@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto'
 import { useAuthStore } from '@/store/auth'
+import { useBranchStore } from '@/store/branch'
 import { API_BASE } from './config'
 import { tokenStorage } from './tokenStorage'
 
@@ -83,6 +84,8 @@ export async function refreshSession(): Promise<boolean> {
           body: JSON.stringify({ refreshToken }),
         })
         if (!res.ok) {
+          // Drain the error body so the request completes (an unread body keeps the connection open).
+          await res.text().catch(() => '')
           // Only a rejected token ends the session; network errors keep it for the next attempt.
           if (res.status === 401 || res.status === 400) {
             await tokenStorage.clear()
@@ -115,6 +118,8 @@ interface RequestOptions {
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<ApiEnvelope<T>> {
   const token = opts.token ?? useAuthStore.getState().accessToken
   const headers: Record<string, string> = { ...BASE_HEADERS, ...(opts.headers ?? {}) }
+  const branchId = useBranchStore.getState().branchId
+  if (branchId && !headers['X-Branch-Id']) headers['X-Branch-Id'] = branchId
   let body: string | undefined
   if (opts.body !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -212,14 +217,40 @@ export interface CustomerInfo {
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'BLOCKED'
 }
 
+/** A business (tenant) the signed-in mobile number belongs to, or the Super Admin console (platform). */
+export interface TenantChoice {
+  businessId?: string
+  name: string
+  logoUrl?: string
+  tenantCode?: string
+  role: string
+  platform: boolean
+}
+
+export interface BusinessInfo {
+  id: string
+  name: string
+  logoUrl?: string
+}
+
 export interface Me {
   id: string
   fullName: string
   mobileNumber: string
   email?: string
-  role: 'OWNER' | 'ADMIN' | 'CUSTOMER'
+  role: 'OWNER' | 'ADMIN' | 'CUSTOMER' | 'SUPPLIER' | 'SUPER_ADMIN'
   permissions: string[]
   customer?: CustomerInfo
+  /** The business this session belongs to (tenant branding); absent for the Super Admin console. */
+  business?: BusinessInfo
+  /** Everywhere this number can switch to: its businesses, plus the console for a platform admin. */
+  memberships?: TenantChoice[]
+  /** Module codes enabled for the business (§0B.6); menus of other modules are hidden. */
+  modules?: string[]
+  /** A Super Admin's read-only support view (web only). */
+  support?: boolean
+  /** The supplier behind a SUPPLIER login (supplier portal). */
+  supplier?: { id: string; supplierCode: string; name: string }
 }
 
 export interface AuthResponse {
@@ -228,7 +259,13 @@ export interface AuthResponse {
   accessTokenExpiresAt?: string
   refreshToken?: string
   registrationToken?: string
+  /** The business a new number registers into (join link or default). */
+  registrationBusiness?: BusinessInfo
   user?: Me
+  /** The number belongs to several businesses: pick one with the selection token. */
+  selectionRequired?: boolean
+  selectionToken?: string
+  tenants?: TenantChoice[]
 }
 
 export async function logout() {

@@ -21,8 +21,12 @@ public class UserSession {
 
     @Id
     private UUID id;
-    @Column(nullable = false)
+    /** Tenant user (membership); null for a platform admin session. */
     private UUID userId;
+    /** Platform admin (SUPER_ADMIN); null for a tenant session. */
+    private UUID platformAdminId;
+    /** Tenant of a userId session. */
+    private UUID businessId;
     private String deviceInfo;
     private String ipAddress;
     @Column(nullable = false)
@@ -32,9 +36,30 @@ public class UserSession {
     private Instant revokedAt;
     private String revokeReason;
 
-    UserSession(UUID userId, String deviceInfo, String ipAddress) {
+    static UserSession forUser(UUID userId, UUID businessId, String deviceInfo, String ipAddress) {
+        UserSession s = new UserSession(deviceInfo, ipAddress);
+        s.userId = userId;
+        s.businessId = businessId;
+        return s;
+    }
+
+    static UserSession forPlatformAdmin(UUID platformAdminId, String deviceInfo, String ipAddress) {
+        UserSession s = new UserSession(deviceInfo, ipAddress);
+        s.platformAdminId = platformAdminId;
+        return s;
+    }
+
+    boolean isPlatform() {
+        return platformAdminId != null;
+    }
+
+    /** The token subject: the user or the platform admin. */
+    UUID subjectId() {
+        return platformAdminId != null ? platformAdminId : userId;
+    }
+
+    private UserSession(String deviceInfo, String ipAddress) {
         this.id = UUID.randomUUID();
-        this.userId = userId;
         this.deviceInfo = deviceInfo;
         this.ipAddress = ipAddress;
         this.createdAt = Instant.now();

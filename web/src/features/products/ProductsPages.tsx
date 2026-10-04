@@ -14,10 +14,12 @@ import { useToast } from '@/components/ui/Toast'
 import { useListParams } from '@/hooks/useListParams'
 import { api, ApiError } from '@/services/api'
 import type { Category, MovementRow, Product } from '@/services/types'
-import { useCan } from '@/stores/auth'
+import { useCan, useModule } from '@/stores/auth'
 import { dateTime, money, quantity, titleCase } from '@/utils/format'
-
-const UNITS = ['PCS', 'BOX', 'PACK', 'KG', 'G', 'L', 'ML', 'M', 'DOZEN', 'SET', 'CARTON', 'BAG']
+import {
+  BatchesCard, defaultOptions, LabelsButton, optionsBody, optionsFrom, ProductOptionsCard, SerialsCard, UNITS, VariantsCard,
+} from './ProductOptions'
+import type { ProductOptionsValue } from './ProductOptions'
 
 export function useCategories() {
   return useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/api/v1/categories'), staleTime: 60_000 })
@@ -56,7 +58,7 @@ export function ProductsPage() {
                       {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" /> : <Package size={16} className="muted" />}
                     </div>
                   ) },
-                  { key: 'n', header: 'Product', sortKey: 'name', render: (p) => <div><div style={{ fontWeight: 600 }}>{p.name}</div><div className="xs muted">{p.sku} · {p.categoryName}</div></div> },
+                  { key: 'n', header: 'Product', sortKey: 'name', render: (p) => <div><div style={{ fontWeight: 600 }}>{p.name}{p.variantGroup && <> <Badge tone="purple">Variants</Badge></>}</div><div className="xs muted">{p.sku} · {p.categoryName}</div></div> },
                   { key: 'h', header: 'HSN', render: (p) => p.hsnCode ?? '—' },
                   { key: 'g', header: 'GST', align: 'right', render: (p) => `${p.gstRate}%` },
                   { key: 'c', header: 'Cost', align: 'right', render: (p) => money(p.purchasePrice) },
@@ -103,6 +105,8 @@ export function ProductFormPage() {
   const categories = useCategories()
   const rates = useTaxRates()
   const existing = useQuery({ queryKey: ['product', id], queryFn: () => api.get<Product>(`/api/v1/products/${id}`), enabled: editing })
+  const uom = useModule('UOM_CONVERSIONS')
+  const [options, setOptions] = useState<ProductOptionsValue>(defaultOptions())
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
     defaultValues: { unit: 'PCS', featured: false, gstRate: '', sku: '', minimumStock: '0', openingStock: '0' },
@@ -115,6 +119,7 @@ export function ProductFormPage() {
         purchasePrice: String(p.purchasePrice), sellingPrice: String(p.sellingPrice), mrp: p.mrp != null ? String(p.mrp) : '', gstRate: String(p.gstRate),
         minimumStock: String(p.minimumStock), featured: p.featured,
       })
+      setOptions(optionsFrom(p))
     } else if (!editing && rates.data && !form.getValues('gstRate')) {
       form.setValue('gstRate', String(rates.data.defaultGstRate))
     }
@@ -125,7 +130,7 @@ export function ProductFormPage() {
       const body = {
         name: v.name, categoryId: v.categoryId, brand: v.brand || undefined, description: v.description || undefined, hsnCode: v.hsnCode || undefined,
         unit: v.unit, purchasePrice: v.purchasePrice, sellingPrice: v.sellingPrice, mrp: v.mrp || undefined, gstRate: v.gstRate,
-        minimumStock: v.minimumStock || '0', featured: v.featured,
+        minimumStock: v.minimumStock || '0', featured: v.featured, ...optionsBody(options, uom),
       }
       return editing
         ? api.patch<Product>(`/api/v1/products/${id}`, body)
@@ -171,10 +176,11 @@ export function ProductFormPage() {
             <Field label="HSN code" htmlFor="hsnCode" error={fieldErr('hsnCode')}><Input id="hsnCode" inputMode="numeric" {...form.register('hsnCode')} invalid={!!fieldErr('hsnCode')} /></Field>
           </div>
         </Card>
+        <ProductOptionsCard value={options} onChange={setOptions} baseUnit={form.watch('unit')} error={err} />
         <Card title="Stock">
           <div className="form-grid">
             <Field label="Minimum stock (low-stock alert)" htmlFor="minimumStock"><Input id="minimumStock" type="number" step="any" min={0} {...form.register('minimumStock')} /></Field>
-            {!editing && <Field label="Opening stock" htmlFor="openingStock" hint="Posted as an OPENING stock movement"><Input id="openingStock" type="number" step="any" min={0} {...form.register('openingStock')} /></Field>}
+            {!editing && !options.trackSerials && <Field label="Opening stock" htmlFor="openingStock" hint="Posted as an OPENING stock movement"><Input id="openingStock" type="number" step="any" min={0} {...form.register('openingStock')} /></Field>}
             <div className="span-2"><Switch label="Featured in the customer catalog" checked={form.watch('featured')} onChange={(v) => form.setValue('featured', v)} /></div>
           </div>
         </Card>
@@ -223,23 +229,34 @@ export function ProductDetailPage() {
           <PageHeader
             breadcrumb={<Link to="/app/products" className="row" style={{ gap: 4 }}><ArrowLeft size={14} /> Products</Link>}
             title={<span className="row">{p.name} {!p.active && <Badge>Inactive</Badge>}</span>}
-            subtitle={`${p.sku} · ${p.categoryName}`}
-            actions={canWrite && (
+            subtitle={`${p.sku} · ${p.categoryName}${p.variantAttributes ? ` · ${p.variantAttributes}` : ''}`}
+            actions={(
               <>
-                <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(!p.active)}>{p.active ? 'Deactivate' : 'Activate'}</Button>
-                <Button icon={<Pencil size={16} />} onClick={() => navigate(`/app/products/${p.id}/edit`)}>Edit</Button>
+                {!p.variantGroup && <LabelsButton productIds={[p.id]} />}
+                {canWrite && <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(!p.active)}>{p.active ? 'Deactivate' : 'Activate'}</Button>}
+                {canWrite && <Button icon={<Pencil size={16} />} onClick={() => navigate(`/app/products/${p.id}/edit`)}>Edit</Button>}
               </>
             )}
           />
+          {p.parentId && <Alert tone="info">This is a variant. <Link to={`/app/products/${p.parentId}`}>Open the variant group</Link></Alert>}
+          {p.variantGroup && <Alert tone="info">This is a variant group: it is not sold itself. Sell, buy and stock its variants below.</Alert>}
           <div className="detail-grid">
             <div className="stack">
               <Card title="Details">
                 <KeyValue items={[
-                  ['Brand', p.brand], ['HSN', p.hsnCode], ['Unit', p.unit], ['GST rate', `${p.gstRate}%`],
+                  ['Brand', p.brand], ['HSN', p.hsnCode], ['Unit', p.unit],
+                  ['Other units', p.units.length ? p.units.map((u) => `1 ${u.unit} = ${Number(u.factor)} ${p.unit}`).join(', ') : undefined],
+                  ['Barcode', p.barcode], ['GST rate', `${p.gstRate}%`],
                   ['Purchase price', money(p.purchasePrice)], ['Selling price', money(p.sellingPrice)], ['MRP', p.mrp != null ? money(p.mrp) : undefined],
+                  ['Pricing', p.pricingMode === 'FIXED' ? undefined : p.pricingMode === 'MRP' ? `MRP less ${p.mrpDiscountPercent ?? 0}%` : 'Daily rate list'],
+                  ['Tracking', p.trackBatches ? 'Batch + expiry' : p.trackSerials ? `Serial numbers${p.warrantyMonths ? ` · ${p.warrantyMonths} months warranty` : ''}` : undefined],
+                  ['Quantities', p.decimalQuantity ? 'Decimals allowed' : 'Whole numbers'],
                   ['Description', p.description], ['Updated', dateTime(p.updatedAt)],
                 ]} />
               </Card>
+              <VariantsCard product={p} />
+              <BatchesCard product={p} />
+              <SerialsCard product={p} />
               {canStock && (
                 <Card title="Recent stock movements" padded={false} actions={<Link to={`/app/stock/movements?productId=${p.id}`} className="small">All movements</Link>}>
                   <QueryState query={movements} isEmpty={(d) => d.items.length === 0} empty={<EmptyState title="No movements yet" />}>

@@ -178,7 +178,13 @@ export function OrderDetailPage() {
                     rows={o.items ?? []}
                     rowKey={(i) => i.id}
                     columns={[
-                      { key: 'p', header: 'Product', render: (i) => <div><div style={{ fontWeight: 600 }}>{i.productName}</div><div className="xs muted">{i.sku} · HSN {i.hsnCode ?? '—'}</div></div> },
+                      { key: 'p', header: 'Product', render: (i) => (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{i.productName} {i.freeItem && <Badge tone="success">Free</Badge>}</div>
+                          <div className="xs muted">{i.sku} · HSN {i.hsnCode ?? '—'}{i.unitFactor !== 1 ? ` · 1 ${i.unit} = ${Number(i.unitFactor)}` : ''}</div>
+                          {i.schemeName && <div className="xs muted">Scheme: {i.schemeName}</div>}
+                        </div>
+                      ) },
                       { key: 'o', header: 'Ordered', align: 'right', render: (i) => `${quantity(i.orderedQuantity)} ${i.unit}` },
                       { key: 'a', header: 'Accepted', align: 'right', render: (i) => (s === 'PLACED' ? '—' : quantity(i.acceptedQuantity)) },
                       { key: 'dl', header: 'Delivered', align: 'right', render: (i) => quantity(i.deliveredQuantity) },

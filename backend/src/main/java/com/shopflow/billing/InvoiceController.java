@@ -181,7 +181,12 @@ public class InvoiceController {
                 it.getProductId(), it.getProductName(), it.getDescription(), it.getSku(), it.getHsnCode(), it.getUnit(),
                 it.getQuantity(), it.getRate(), it.getDiscountPercent(), it.getDiscountAmount(), it.getTaxRate(),
                 it.getTaxableAmount(), it.getCgstAmount(), it.getSgstAmount(), it.getIgstAmount(), it.getLineTotal(),
-                it.getReturnedQuantity())).toList() : null;
+                it.getReturnedQuantity(), it.getUnitFactor(), it.isFreeItem(), it.getSchemeName(),
+                it.getSerialNumbers() == null || it.getSerialNumbers().isBlank() ? List.of() : List.of(it.getSerialNumbers().split(",")),
+                it.getBatchDetails())).toList() : null;
+        List<InvoiceDtos.ChargeResponse> charges = detail ? i.getCharges().stream().map(c -> new InvoiceDtos.ChargeResponse(c.getId(),
+                c.getChargeType().name(), c.displayName(), c.getSacCode(), c.getAmount(), c.getTaxRate(), c.getCgstAmount(),
+                c.getSgstAmount(), c.getIgstAmount(), c.getTotal())).toList() : null;
         List<TaxSummaryResponse> taxes = detail ? i.getTaxSummaries().stream().map(t -> new TaxSummaryResponse(t.getHsnCode(),
                 t.getTaxRate(), t.getTaxableAmount(), t.getCgstAmount(), t.getSgstAmount(), t.getIgstAmount(), t.getTotalTax())).toList() : null;
         List<CreditNoteResponse> notes = detail ? creditNotes.forInvoice(i.getId()).stream().map(n -> new CreditNoteResponse(n.getId(),
@@ -197,7 +202,8 @@ public class InvoiceController {
                 i.getTaxableTotal(), i.getCgstTotal(), i.getSgstTotal(), i.getIgstTotal(), i.getRoundOff(), i.getGrandTotal(),
                 i.getPaidAmount(), i.getCreditedAmount(), i.outstanding(), i.getAmountInWords(), i.getTaxAmountInWords(),
                 i.getEinvoiceStatus().name(), i.getIrn(), i.getAckNumber(), overdue, i.getGeneratedAt(), i.getSentAt(),
-                i.getCancelReason(), items, taxes, notes, i.getCreatedAt());
+                i.getCancelReason(), items, taxes, notes, i.getCreatedAt(), charges, i.getChargesTotal(),
+                detail ? service.tradeInfo(i, staff) : null);
     }
 
     public record WhatsAppMessageResponse(UUID id, UUID invoiceId, String recipient, String status, String providerMessageId,

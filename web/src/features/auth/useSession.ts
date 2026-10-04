@@ -29,5 +29,7 @@ export function useLogout() {
 
 export function homeFor(role: string | undefined, customerStatus?: string): string {
   if (role === 'CUSTOMER') return customerStatus === 'APPROVED' ? '/shop' : '/registration-status'
+  if (role === 'SUPER_ADMIN') return '/platform'
+  if (role === 'SUPPLIER') return '/supplier'
   return '/app'
 }

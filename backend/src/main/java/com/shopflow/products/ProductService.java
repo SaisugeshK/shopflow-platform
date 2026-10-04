@@ -16,6 +16,8 @@ import com.shopflow.inventory.InventoryService;
 import com.shopflow.inventory.StockBalance;
 import com.shopflow.inventory.StockMovement.MovementType;
 import com.shopflow.products.ProductDtos.CatalogProduct;
+import com.shopflow.products.ProductDtos.CatalogUnit;
+import com.shopflow.products.ProductDtos.UnitOption;
 import com.shopflow.products.ProductDtos.CreateProductRequest;
 import com.shopflow.products.ProductDtos.ImageResponse;
 import com.shopflow.products.ProductDtos.ProductResponse;
@@ -59,11 +61,16 @@ public class ProductService {
     private final BusinessContext businessContext;
     private final BusinessSettingsService settings;
     private final AuditService audit;
+    private final ProductOptionsService options;
+
+    private final com.shopflow.saas.PlanLimits limits;
 
     public ProductService(ProductRepository products, CategoryRepository categories, BrandRepository brands,
                           ProductImageRepository images, StockBalanceRepository stockBalances, InventoryService inventory,
                           PricingService pricing, FileService files, BusinessContext businessContext,
-                          BusinessSettingsService settings, AuditService audit) {
+                          BusinessSettingsService settings, AuditService audit, ProductOptionsService options, com.shopflow.saas.PlanLimits limits) {
+        this.limits = limits;
+        this.options = options;
         this.products = products;
         this.categories = categories;
         this.brands = brands;
@@ -87,6 +94,7 @@ public class ProductService {
 
     @Transactional
     public Product create(CreateProductRequest r) {
+        limits.check(com.shopflow.saas.PlanLimits.Limit.PRODUCTS);
         Category category = activeCategory(r.categoryId());
         validateGstRate(r.gstRate());
         String sku = r.sku() == null || r.sku().isBlank() ? generateSku(category) : r.sku().trim().toUpperCase();
@@ -110,8 +118,21 @@ public class ProductService {
         p.setActive(r.active() == null || r.active());
         p.setFeatured(Boolean.TRUE.equals(r.featured()));
         p.setCreatedBy(CurrentUser.id());
+        p.setBarcode(Validation.trim(r.barcode()));
+        p.setDecimalQuantity(r.decimalQuantity() != null ? r.decimalQuantity() : r.unit().fractional());
+        p.setPricingMode(r.pricingMode() == null ? Product.PricingMode.FIXED : r.pricingMode());
+        p.setMrpDiscountPercent(r.mrpDiscountPercent());
+        p.setTrackBatches(Boolean.TRUE.equals(r.trackBatches()));
+        p.setTrackSerials(Boolean.TRUE.equals(r.trackSerials()));
+        p.setWarrantyMonths(r.warrantyMonths());
+        options.checkOptions(p);
+        checkBarcode(p);
         validatePrices(p);
+        if (p.isTrackSerials() && Money.isPositive(r.openingStock())) {
+            throw BusinessException.validation("openingStock", "Receive serial-numbered stock through a purchase so each serial number is recorded");
+        }
         products.saveAndFlush(p);
+        options.replaceUnits(p, r.units());
         inventory.createBalance(p.getId());
         if (Money.isPositive(r.openingStock())) {
             inventory.post(p.getId(), MovementType.OPENING, r.openingStock(), p.getPurchasePrice(), "OPENING_STOCK",
@@ -162,9 +183,41 @@ public class ProductService {
         if (r.featured() != null) {
             p.setFeatured(r.featured());
         }
+        if (r.barcode() != null) {
+            p.setBarcode(Validation.trim(r.barcode()));
+        }
+        if (r.decimalQuantity() != null) {
+            p.setDecimalQuantity(r.decimalQuantity());
+        }
+        if (r.pricingMode() != null) {
+            p.setPricingMode(r.pricingMode());
+        }
+        if (r.mrpDiscountPercent() != null) {
+            p.setMrpDiscountPercent(r.mrpDiscountPercent());
+        }
+        if (r.warrantyMonths() != null) {
+            p.setWarrantyMonths(r.warrantyMonths());
+        }
+        boolean startBatches = Boolean.TRUE.equals(r.trackBatches()) && !p.isTrackBatches();
+        if (r.trackBatches() != null) {
+            p.setTrackBatches(r.trackBatches());
+        }
+        if (r.trackSerials() != null) {
+            if (r.trackSerials() && !p.isTrackSerials() && inventory.balance(id).getOnHand().signum() > 0) {
+                throw BusinessException.validation("trackSerials", "Serial numbers can be switched on only while stock is zero; then receive stock with serial numbers");
+            }
+            p.setTrackSerials(r.trackSerials());
+        }
+        options.checkOptions(p);
+        checkBarcode(p);
         validatePrices(p);
         p.setUpdatedBy(CurrentUser.id());
         products.saveAndFlush(p);
+        options.replaceUnits(p, r.units());
+        if (startBatches) {
+            // Stock received before batch tracking was switched on goes into one "UNBATCHED" batch.
+            inventory.openUnbatchedStock(p.getId());
+        }
         audit.record(AuditAction.PRODUCT_UPDATED, "PRODUCT", id, before, snapshot(p));
         return p;
     }
@@ -209,16 +262,114 @@ public class ProductService {
         }
     }
 
+    // ---------------------------------------------------------------- variants (§0B.7)
+
+    /**
+     * Turns a product into a variant group and creates one sellable product per combination of attribute values
+     * (e.g. Size S/M/L × Colour Red/Blue = 6 variants). Existing combinations are kept; only new ones are added.
+     */
+    @Transactional
+    public List<Product> generateVariants(UUID groupId, ProductDtos.GenerateVariantsRequest r) {
+        options.checkModule(com.shopflow.tenancy.ModuleCode.VARIANTS);
+        Product group = get(groupId);
+        if (group.getParentId() != null) {
+            throw BusinessException.validation("productId", "A variant cannot have its own variants");
+        }
+        if (!group.isVariantGroup() && inventory.balance(groupId).getOnHand().signum() > 0) {
+            throw BusinessException.validation("productId", "Variants can be added only while the product has no stock; adjust its stock to zero first");
+        }
+        List<List<String[]>> combos = new ArrayList<>();
+        combos.add(new ArrayList<>());
+        for (ProductDtos.VariantAttribute a : r.attributes()) {
+            List<List<String[]>> next = new ArrayList<>();
+            for (List<String[]> base : combos) {
+                for (String v : a.values().stream().map(String::trim).filter(x -> !x.isEmpty()).distinct().toList()) {
+                    List<String[]> c = new ArrayList<>(base);
+                    c.add(new String[]{a.name().trim(), v});
+                    next.add(c);
+                }
+            }
+            combos = next;
+        }
+        if (combos.size() > 200) {
+            throw BusinessException.validation("attributes", "At most 200 variants at once (" + combos.size() + " requested)");
+        }
+        group.setVariantGroup(true);
+        group.setUpdatedBy(CurrentUser.id());
+        java.util.Set<String> existing = products.findByParentIdOrderByNameAsc(groupId).stream()
+                .map(Product::getVariantAttributes).collect(Collectors.toSet());
+        List<Product> created = new ArrayList<>();
+        for (List<String[]> combo : combos) {
+            String attributes = combo.stream().map(x -> x[0] + ": " + x[1]).collect(Collectors.joining(" · "));
+            if (existing.contains(attributes)) {
+                continue;
+            }
+            String suffix = combo.stream().map(x -> x[1].toUpperCase().replaceAll("[^A-Z0-9]+", "")).collect(Collectors.joining("-"));
+            String sku = uniqueSku((group.getSku() + "-" + suffix).replaceAll("-+$", ""));
+            Product v = new Product();
+            v.setBusinessId(businessContext.businessId());
+            v.setSku(sku);
+            v.setName(group.getName() + " - " + combo.stream().map(x -> x[1]).collect(Collectors.joining(" / ")));
+            v.setCategoryId(group.getCategoryId());
+            v.setBrandId(group.getBrandId());
+            v.setDescription(group.getDescription());
+            v.setHsnCode(group.getHsnCode());
+            v.setUnit(group.getUnit());
+            v.setPurchasePrice(group.getPurchasePrice());
+            v.setSellingPrice(r.sellingPrice() != null ? Money.of(r.sellingPrice()) : group.getSellingPrice());
+            v.setMrp(group.getMrp());
+            v.setGstRate(group.getGstRate());
+            v.setMinimumStock(group.getMinimumStock());
+            v.setDecimalQuantity(group.isDecimalQuantity());
+            v.setPricingMode(group.getPricingMode());
+            v.setMrpDiscountPercent(group.getMrpDiscountPercent());
+            v.setTrackBatches(group.isTrackBatches());
+            v.setTrackSerials(group.isTrackSerials());
+            v.setWarrantyMonths(group.getWarrantyMonths());
+            v.setParentId(group.getId());
+            v.setVariantAttributes(attributes);
+            v.setCreatedBy(CurrentUser.id());
+            validatePrices(v);
+            products.saveAndFlush(v);
+            inventory.createBalance(v.getId());
+            created.add(v);
+        }
+        audit.record(AuditAction.PRODUCT_UPDATED, "PRODUCT", groupId, null, Map.of("variantsCreated", created.size()));
+        return products.findByParentIdOrderByNameAsc(groupId);
+    }
+
+    public List<Product> variantsOf(UUID groupId) {
+        return products.findByParentIdOrderByNameAsc(groupId);
+    }
+
+    private String uniqueSku(String base) {
+        String sku = base.length() > 56 ? base.substring(0, 56) : base;
+        String candidate = sku;
+        for (int i = 2; products.existsByBusinessIdAndSkuIgnoreCase(businessContext.businessId(), candidate); i++) {
+            candidate = sku + "-" + i;
+        }
+        return candidate;
+    }
+
     // ---------------------------------------------------------------- queries
 
     public Page<Product> search(String q, UUID categoryId, Boolean active, Boolean featured, Pageable pageable) {
+        return search(q, categoryId, active, featured, false, pageable);
+    }
+
+    /** {@code sellableOnly}: leave out variant groups (templates that are not sold themselves). */
+    public Page<Product> search(String q, UUID categoryId, Boolean active, Boolean featured, boolean sellableOnly, Pageable pageable) {
         Specification<Product> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("businessId"), businessContext.businessId()));
+            if (sellableOnly) {
+                predicates.add(cb.isFalse(root.get("variantGroup")));
+            }
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.trim().toLowerCase() + "%";
                 predicates.add(cb.or(cb.like(cb.lower(root.get("name")), like), cb.like(cb.lower(root.get("sku")), like),
-                        cb.like(cb.lower(cb.coalesce(root.get("hsnCode"), "")), like)));
+                        cb.like(cb.lower(cb.coalesce(root.get("hsnCode"), "")), like),
+                        cb.equal(cb.lower(cb.coalesce(root.get("barcode"), "")), q.trim().toLowerCase())));
             }
             if (categoryId != null) {
                 predicates.add(cb.equal(root.get("categoryId"), categoryId));
@@ -253,11 +404,14 @@ public class ProductService {
             BigDecimal price = custom.getOrDefault(p.getId(), Money.of(p.getSellingPrice()));
             List<String> urls = images.findByProductIdOrderBySortOrderAsc(p.getId()).stream()
                     .map(i -> PUBLIC_FILE_URL + i.getFileId()).toList();
+            List<CatalogUnit> catalogUnits = ctx.units().getOrDefault(p.getId(), List.of()).stream()
+                    .map(u -> new CatalogUnit(u.unit(), u.factor(), Money.of(price.multiply(u.factor())))).toList();
             return new CatalogProduct(p.getId(), p.getSku(), p.getName(), p.getCategoryId(),
                     ctx.categoryName(p.getCategoryId()), ctx.brandName(p.getBrandId()), p.getDescription(), p.getHsnCode(),
                     p.getUnit().name(), price, p.getMrp(), p.getGstRate(), custom.containsKey(p.getId()),
                     stockStatus(available, p.getMinimumStock()), showStock ? available : null, p.isFeatured(),
-                    ctx.primaryImage(p.getId()), urls);
+                    ctx.primaryImage(p.getId()), urls, p.isDecimalQuantity(), catalogUnits, p.getParentId(),
+                    p.getVariantAttributes());
         }).toList();
     }
 
@@ -272,7 +426,9 @@ public class ProductService {
                 reserved, available, stockStatus(available, p.getMinimumStock()), p.isActive(), p.isFeatured(),
                 ctx.primaryImage(p.getId()),
                 productImages.stream().map(i -> new ImageResponse(i.getId(), i.getFileId(), PUBLIC_FILE_URL + i.getFileId(), i.isPrimaryImage())).toList(),
-                p.getCreatedAt(), p.getUpdatedAt());
+                p.getCreatedAt(), p.getUpdatedAt(), p.getBarcode(), p.isDecimalQuantity(), p.getPricingMode().name(),
+                p.getMrpDiscountPercent(), p.isTrackBatches(), p.isTrackSerials(), p.getWarrantyMonths(), p.isVariantGroup(),
+                p.getParentId(), p.getVariantAttributes(), ctx.units().getOrDefault(p.getId(), List.of()));
     }
 
     static String stockStatus(BigDecimal available, BigDecimal minimum) {
@@ -294,11 +450,11 @@ public class ProductService {
                 .forEach(b -> brandNames.put(b.getId(), b.getName()));
         Map<UUID, String> primaryImages = new HashMap<>();
         images.findByProductIdInAndPrimaryImageTrue(ids).forEach(i -> primaryImages.put(i.getProductId(), PUBLIC_FILE_URL + i.getFileId()));
-        return new Context(balances, categoryNames, brandNames, primaryImages);
+        return new Context(balances, categoryNames, brandNames, primaryImages, options.unitsOf(ids));
     }
 
     private record Context(Map<UUID, StockBalance> balances, Map<UUID, String> categories, Map<UUID, String> brands,
-                           Map<UUID, String> images) {
+                           Map<UUID, String> images, Map<UUID, List<UnitOption>> units) {
         String categoryName(UUID id) {
             return categories.get(id);
         }
@@ -338,6 +494,15 @@ public class ProductService {
         if (!settings.taxSettings().isAllowedRate(rate)) {
             throw BusinessException.validation("gstRate", "GST rate must be one of " + settings.taxSettings().getAllowedGstRates());
         }
+    }
+
+    private void checkBarcode(Product p) {
+        if (p.getBarcode() == null) {
+            return;
+        }
+        products.findFirstByBarcode(p.getBarcode()).filter(other -> !other.getId().equals(p.getId())).ifPresent(other -> {
+            throw BusinessException.validation("barcode", "Barcode already used by " + other.getName());
+        });
     }
 
     private static void validatePrices(Product p) {

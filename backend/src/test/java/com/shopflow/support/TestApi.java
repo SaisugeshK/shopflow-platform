@@ -33,11 +33,23 @@ public class TestApi {
     }
 
     public String login(String mobile) {
+        return verify(mobile, null).path("accessToken").asString();
+    }
+
+    /** Requests and verifies an OTP; returns the verify response's data (session, selection or registration). */
+    public JsonNode verify(String mobile, String tenantCode) {
         JsonNode challenge = post("/api/v1/auth/otp/request", null, Map.of("mobileNumber", mobile), 200).path("data");
         String code = otp.latestFor(MobileNumbers.normalize(mobile)).orElseThrow();
-        JsonNode verified = post("/api/v1/auth/otp/verify", null, Map.of("mobileNumber", mobile, "otp", code,
-                "requestId", challenge.path("requestId").asString()), 200).path("data");
-        return verified.path("accessToken").asString();
+        Map<String, Object> body = new java.util.HashMap<>(Map.of("mobileNumber", mobile, "otp", code,
+                "requestId", challenge.path("requestId").asString()));
+        if (tenantCode != null) {
+            body.put("tenantCode", tenantCode);
+        }
+        return post("/api/v1/auth/otp/verify", null, body, 200).path("data");
+    }
+
+    public String latestOtp(String mobile) {
+        return otp.latestFor(MobileNumbers.normalize(mobile)).orElseThrow();
     }
 
     public JsonNode get(String path, String token, int expectedStatus) {

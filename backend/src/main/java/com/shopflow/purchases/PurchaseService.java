@@ -13,7 +13,9 @@ import com.shopflow.common.util.Money;
 import com.shopflow.common.util.Validation;
 import com.shopflow.inventory.InventoryService;
 import com.shopflow.inventory.StockMovement.MovementType;
+import com.shopflow.inventory.StockTrace;
 import com.shopflow.products.Product;
+import com.shopflow.products.ProductOptionsService;
 import com.shopflow.products.ProductService;
 import com.shopflow.purchases.PurchaseDtos.CreatePurchaseRequest;
 import com.shopflow.purchases.PurchaseDtos.CreatePurchaseReturnRequest;
@@ -67,11 +69,13 @@ public class PurchaseService {
     private final BusinessContext businessContext;
     private final BusinessSettingsService settings;
     private final AuditService audit;
+    private final ProductOptionsService options;
 
     public PurchaseService(PurchaseRepository purchases, PurchasePaymentRepository payments, PurchaseReturnRepository returns,
                            SupplierService suppliers, ProductService products, InventoryService inventory,
                            TaxCalculator calculator, DocumentSequenceService sequences, BusinessContext businessContext,
-                           BusinessSettingsService settings, AuditService audit) {
+                           BusinessSettingsService settings, AuditService audit, ProductOptionsService options) {
+        this.options = options;
         this.purchases = purchases;
         this.payments = payments;
         this.returns = returns;
@@ -136,11 +140,17 @@ public class PurchaseService {
         Map<UUID, Product> productMap = products.getAll(r.items().stream().map(PurchaseItemRequest::productId).toList())
                 .stream().collect(Collectors.toMap(Product::getId, Function.identity()));
         List<TaxCalculator.Line> lines = new ArrayList<>();
+        List<ProductOptionsService.ResolvedUnit> unitsByLine = new ArrayList<>();
         for (PurchaseItemRequest item : r.items()) {
             Product product = productMap.get(item.productId());
             if (product == null) {
                 throw BusinessException.validation("items", "Product " + item.productId() + " not found");
             }
+            options.requireSellable(product);
+            ProductOptionsService.ResolvedUnit unit = options.resolve(product, item.unit());
+            options.validateQuantity(product, unit.toBase(item.quantity()));
+            unitsByLine.add(unit);
+            checkTracking(product, unit.toBase(item.quantity()), item);
             BigDecimal taxRate = item.taxRate() != null ? item.taxRate() : product.getGstRate();
             lines.add(new TaxCalculator.Line(item.quantity(), item.rate(), item.discountPercent(), item.discountAmount(), taxRate, product.getHsnCode()));
         }
@@ -167,9 +177,19 @@ public class PurchaseService {
             item.setProductId(product.getId());
             item.setProductName(product.getName());
             item.setHsnCode(product.getHsnCode());
-            item.setUnit(product.getUnit().name());
+            item.setUnit(unitsByLine.get(i).unit());
+            item.setUnitFactor(unitsByLine.get(i).factor());
             item.setQuantity(Money.qty(req.quantity()));
             item.setRate(Money.of(req.rate()));
+            if (product.isTrackBatches()) {
+                item.setBatchNumber(req.batchNumber() == null || req.batchNumber().isBlank() ? null : req.batchNumber().trim().toUpperCase());
+                item.setMfgDate(req.mfgDate());
+                item.setExpiryDate(req.expiryDate());
+            }
+            if (product.isTrackSerials() && req.serialNumbers() != null) {
+                item.setSerialNumbers(String.join(",", req.serialNumbers().stream().map(String::trim).filter(s -> !s.isEmpty())
+                        .map(String::toUpperCase).toList()));
+            }
             item.setDiscountPercent(lr.discountPercent());
             item.setDiscountAmount(lr.discountAmount());
             item.setTaxRate(lines.get(i).taxRate());
@@ -201,9 +221,12 @@ public class PurchaseService {
             throw new BusinessException(ErrorCode.PURCHASE_INVALID_STATUS, "Only draft purchases can be posted");
         }
         p.getItems().stream().sorted(Comparator.comparing(PurchaseItem::getProductId)).forEach(item -> {
-            BigDecimal unitCost = item.getTaxableAmount().divide(item.getQuantity(), 2, RoundingMode.HALF_UP);
-            inventory.post(item.getProductId(), MovementType.PURCHASE_IN, item.getQuantity(), unitCost, "PURCHASE",
-                    p.getId(), p.getPurchaseNumber(), "Purchase received", null);
+            // Stock is kept in the base unit: quantity × unit factor, cost per base unit.
+            BigDecimal baseQuantity = Money.qty(item.getQuantity().multiply(item.getUnitFactor()));
+            BigDecimal unitCost = item.getTaxableAmount().divide(baseQuantity, 2, RoundingMode.HALF_UP);
+            inventory.postTraced(item.getProductId(), MovementType.PURCHASE_IN, baseQuantity, unitCost, "PURCHASE",
+                    p.getId(), p.getPurchaseNumber(), "Purchase received", null,
+                    StockTrace.received(item.getBatchNumber(), item.getMfgDate(), item.getExpiryDate(), item.serialList()));
         });
         suppliers.credit(p.getSupplierId(), EntryType.PURCHASE, "PURCHASE", p.getId(), p.getPurchaseNumber(),
                 p.getGrandTotal(), "Purchase " + p.getPurchaseNumber()
@@ -359,8 +382,10 @@ public class PurchaseService {
             if (ri.getQuantity().compareTo(remaining) > 0) {
                 throw new BusinessException(ErrorCode.RETURN_INVALID_QUANTITY, "Return exceeds the remaining quantity of " + source.getProductName());
             }
-            inventory.post(ri.getProductId(), MovementType.PURCHASE_RETURN_OUT, ri.getQuantity(), ri.getRate(),
-                    "PURCHASE_RETURN", pr.getId(), pr.getReturnNumber(), pr.getReason(), null);
+            BigDecimal factor = source.getUnitFactor();
+            inventory.postTraced(ri.getProductId(), MovementType.PURCHASE_RETURN_OUT, Money.qty(ri.getQuantity().multiply(factor)),
+                    ri.getRate().divide(factor, 2, RoundingMode.HALF_UP), "PURCHASE_RETURN", pr.getId(), pr.getReturnNumber(),
+                    pr.getReason(), null, new StockTrace(source.getBatchNumber(), null, null, null, "PURCHASE", purchase.getId(), null));
             source.setReturnedQuantity(source.getReturnedQuantity().add(ri.getQuantity()));
         });
         suppliers.debit(pr.getSupplierId(), EntryType.PURCHASE_RETURN, "PURCHASE_RETURN", pr.getId(), pr.getReturnNumber(),
@@ -370,6 +395,23 @@ public class PurchaseService {
         pr.setPostedBy(CurrentUser.id());
         audit.record(AuditAction.PURCHASE_RETURN_POSTED, "PURCHASE_RETURN", id, Map.of("status", "DRAFT"), Map.of("status", "POSTED"));
         return pr;
+    }
+
+    /** Batch-tracked products need a batch number; serial-tracked products one serial per unit received. */
+    private static void checkTracking(Product product, BigDecimal baseQuantity, PurchaseItemRequest item) {
+        if (product.isTrackBatches() && (item.batchNumber() == null || item.batchNumber().isBlank())) {
+            throw BusinessException.validation("batchNumber", "Enter the batch number for " + product.getName());
+        }
+        if (product.isTrackBatches() && item.expiryDate() != null && item.mfgDate() != null && item.expiryDate().isBefore(item.mfgDate())) {
+            throw BusinessException.validation("expiryDate", "Expiry date of " + product.getName() + " is before its manufacturing date");
+        }
+        if (product.isTrackSerials()) {
+            long count = item.serialNumbers() == null ? 0 : item.serialNumbers().stream().filter(s -> s != null && !s.isBlank()).count();
+            if (baseQuantity.stripTrailingZeros().scale() > 0 || count != baseQuantity.longValue()) {
+                throw BusinessException.validation("serialNumbers", "Enter one serial number per unit of " + product.getName()
+                        + " (" + baseQuantity.stripTrailingZeros().toPlainString() + " needed, " + count + " entered)");
+            }
+        }
     }
 
     private BigDecimal draftReturnedQuantity(UUID purchaseId, UUID purchaseItemId) {

@@ -9,6 +9,7 @@ import { Field, Input, PriceInput, SearchInput, Select, Textarea } from '@/compo
 import { ConfirmDialog, Modal } from '@/components/ui/Overlay'
 import { useToast } from '@/components/ui/Toast'
 import { ProductPicker } from '@/features/products/ProductPicker'
+import { unitFactor, unitOptions } from '@/features/products/ProductOptions'
 import { useListParams } from '@/hooks/useListParams'
 import { api, ApiError } from '@/services/api'
 import type { Product, Purchase, PurchaseReturn, Supplier } from '@/services/types'
@@ -60,10 +61,32 @@ export function PurchasesPage() {
 }
 
 interface Line {
+  key: string
   product: Product
   quantity: string
   rate: string
   discountPercent: string
+  unit: string
+  batchNumber: string
+  mfgDate: string
+  expiryDate: string
+  /** One serial number per line of text. */
+  serials: string
+}
+
+function serialList(text: string) {
+  return text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
+}
+
+/** What a received line still needs: a batch number, or one serial number per base unit. */
+function trackingProblem(l: Line): string | null {
+  if (l.product.trackBatches && !l.batchNumber.trim()) return 'Enter the batch number'
+  if (l.product.trackSerials) {
+    const need = Number(l.quantity) * unitFactor(l.product, l.unit)
+    const have = serialList(l.serials).length
+    if (have !== need) return `Enter ${need} serial number(s) (${have} entered)`
+  }
+  return null
 }
 
 /** O12 Add Purchase. Totals and GST are calculated by the backend when saved. */
@@ -82,7 +105,14 @@ export function PurchaseFormPage() {
     mutationFn: (post: boolean) => api.post<Purchase>('/api/v1/purchases', {
       supplierId, purchaseDate, supplierInvoiceNumber: supplierInvoiceNumber || undefined, supplierInvoiceDate: supplierInvoiceDate || undefined,
       notes: notes || undefined, post,
-      items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity, rate: l.rate, discountPercent: l.discountPercent || '0' })),
+      items: lines.map((l) => ({
+        productId: l.product.id, quantity: l.quantity, rate: l.rate, discountPercent: l.discountPercent || '0',
+        unit: l.unit !== l.product.unit ? l.unit : undefined,
+        batchNumber: l.product.trackBatches ? l.batchNumber.trim() : undefined,
+        mfgDate: l.product.trackBatches && l.mfgDate ? l.mfgDate : undefined,
+        expiryDate: l.product.trackBatches && l.expiryDate ? l.expiryDate : undefined,
+        serialNumbers: l.product.trackSerials ? serialList(l.serials) : undefined,
+      })),
     }),
     onSuccess: (p) => {
       toast.success(p.status === 'POSTED' ? 'Purchase posted — stock received' : 'Purchase saved as draft', p.purchaseNumber)
@@ -92,7 +122,7 @@ export function PurchaseFormPage() {
     },
   })
   const err = save.error instanceof ApiError ? save.error : null
-  const valid = supplierId && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0 && Number(l.rate) >= 0 && l.rate !== '')
+  const valid = supplierId && lines.length > 0 && lines.every((l) => Number(l.quantity) > 0 && Number(l.rate) >= 0 && l.rate !== '' && !trackingProblem(l))
   const update = (i: number, patch: Partial<Line>) => setLines(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
 
   return (
@@ -110,12 +140,38 @@ export function PurchaseFormPage() {
       </Card>
       <Card title="Items" padded={false}>
         <div style={{ padding: 16 }}>
-          <ProductPicker exclude={lines.map((l) => l.product.id)} onPick={(p) => setLines([...lines, { product: p, quantity: '1', rate: String(p.purchasePrice), discountPercent: '0' }])} />
+          <ProductPicker exclude={lines.filter((l) => !l.product.trackBatches && l.product.units.length === 0).map((l) => l.product.id)}
+            onPick={(p) => setLines([...lines, { key: `${p.id}-${Date.now()}`, product: p, quantity: '1', rate: String(p.purchasePrice), discountPercent: '0',
+              unit: p.unit, batchNumber: '', mfgDate: '', expiryDate: '', serials: '' }])} />
         </div>
         {lines.length === 0 ? <EmptyState title="No items yet" description="Search and add the products you received." /> : (
-          <DataTable rows={lines.map((l, i) => ({ ...l, i }))} rowKey={(l) => l.product.id} columns={[
-            { key: 'p', header: 'Product', render: (l) => <div><div style={{ fontWeight: 600 }}>{l.product.name}</div><div className="xs muted">{l.product.sku} · GST {l.product.gstRate}%</div></div> },
-            { key: 'q', header: `Quantity`, align: 'right', render: (l) => <Input aria-label={`Quantity of ${l.product.name}`} type="number" min={0} step="any" style={{ width: 100, textAlign: 'right' }} value={l.quantity} onChange={(e) => update(l.i, { quantity: e.target.value })} /> },
+          <DataTable rows={lines.map((l, i) => ({ ...l, i }))} rowKey={(l) => l.key} columns={[
+            { key: 'p', header: 'Product', render: (l) => (
+              <div className="stack-sm">
+                <div><div style={{ fontWeight: 600 }}>{l.product.name}</div><div className="xs muted">{l.product.sku} · GST {l.product.gstRate}%</div></div>
+                {l.product.trackBatches && (
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+                    <Input aria-label={`Batch number of ${l.product.name}`} placeholder="Batch no." style={{ width: 120 }} value={l.batchNumber} onChange={(e) => update(l.i, { batchNumber: e.target.value })} />
+                    <Input aria-label={`Manufacturing date of ${l.product.name}`} type="date" title="Mfg date" style={{ width: 150 }} value={l.mfgDate} onChange={(e) => update(l.i, { mfgDate: e.target.value })} />
+                    <Input aria-label={`Expiry date of ${l.product.name}`} type="date" title="Expiry date" style={{ width: 150 }} value={l.expiryDate} onChange={(e) => update(l.i, { expiryDate: e.target.value })} />
+                  </div>
+                )}
+                {l.product.trackSerials && (
+                  <Textarea aria-label={`Serial numbers of ${l.product.name}`} rows={2} placeholder="One serial / IMEI per line" value={l.serials} onChange={(e) => update(l.i, { serials: e.target.value })} />
+                )}
+                {trackingProblem(l) && <span className="xs danger-text">{trackingProblem(l)}</span>}
+              </div>
+            ) },
+            { key: 'q', header: `Quantity`, align: 'right', render: (l) => (
+              <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                <Input aria-label={`Quantity of ${l.product.name}`} type="number" min={0} step="any" style={{ width: 90, textAlign: 'right' }} value={l.quantity} onChange={(e) => update(l.i, { quantity: e.target.value })} />
+                {l.product.units.length > 0 ? (
+                  <Select aria-label={`Unit of ${l.product.name}`} style={{ width: 110 }} value={l.unit}
+                    onChange={(e) => update(l.i, { unit: e.target.value, rate: String(Math.round(l.product.purchasePrice * unitFactor(l.product, e.target.value) * 100) / 100) })}
+                    options={unitOptions(l.product)} />
+                ) : <span className="xs muted">{l.product.unit}</span>}
+              </div>
+            ) },
             { key: 'r', header: 'Rate', align: 'right', render: (l) => <PriceInput aria-label={`Rate of ${l.product.name}`} style={{ width: 140 }} value={l.rate} onChange={(e) => update(l.i, { rate: e.target.value })} /> },
             { key: 'd', header: 'Disc %', align: 'right', render: (l) => <Input aria-label={`Discount percent for ${l.product.name}`} type="number" min={0} max={100} step="0.01" style={{ width: 90, textAlign: 'right' }} value={l.discountPercent} onChange={(e) => update(l.i, { discountPercent: e.target.value })} /> },
             { key: 'x', header: '', render: (l) => <IconButton label={`Remove ${l.product.name}`} onClick={() => setLines(lines.filter((_, idx) => idx !== l.i))}><Trash2 size={16} /></IconButton> },
@@ -172,7 +228,14 @@ export function PurchaseDetailPage() {
           <div className="detail-grid">
             <Card title="Items" padded={false}>
               <DataTable rows={p.items ?? []} rowKey={(i) => i.id} columns={[
-                { key: 'p', header: 'Product', render: (i) => <div><div style={{ fontWeight: 600 }}>{i.productName}</div><div className="xs muted">HSN {i.hsnCode ?? '—'}</div></div> },
+                { key: 'p', header: 'Product', render: (i) => (
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{i.productName}</div>
+                    <div className="xs muted">HSN {i.hsnCode ?? '—'}{i.unitFactor !== 1 ? ` · 1 ${i.unit} = ${Number(i.unitFactor)}` : ''}</div>
+                    {i.batchNumber && <div className="xs muted">Batch {i.batchNumber}{i.expiryDate ? ` · exp ${date(i.expiryDate)}` : ''}</div>}
+                    {i.serialNumbers.length > 0 && <div className="xs muted">Serials: {i.serialNumbers.join(', ')}</div>}
+                  </div>
+                ) },
                 { key: 'q', header: 'Qty', align: 'right', render: (i) => `${quantity(i.quantity)} ${i.unit}` },
                 { key: 'r', header: 'Rate', align: 'right', render: (i) => money(i.rate) },
                 { key: 'd', header: 'Disc', align: 'right', render: (i) => (i.discountAmount > 0 ? money(i.discountAmount) : '—') },

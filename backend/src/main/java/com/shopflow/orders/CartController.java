@@ -45,7 +45,7 @@ public class CartController {
     @PostMapping("/items")
     @Operation(summary = "Add a product", description = "Adds to the quantity when the product is already in the cart. Errors: PRODUCT_INACTIVE.")
     public ApiResponse<CartResponse> add(@Valid @RequestBody CartItemRequest request) {
-        return ApiResponse.ok(cart.addItem(customerId(), request.productId(), request.quantity()));
+        return ApiResponse.ok(cart.addItem(customerId(), request.productId(), request.quantity(), request.unit()));
     }
 
     @PatchMapping("/items/{id}")

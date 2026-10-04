@@ -18,6 +18,7 @@ import { openDocument } from '@/services/documents'
 import type { Invoice, Party, WhatsAppMessage } from '@/services/types'
 import { useCan } from '@/store/auth'
 import { date, dateTime, money, quantity, titleCase } from '@/utils/format'
+import { InvoiceTradeSection } from '@/components/trade/TradeParts'
 
 function PartyBlock({ title, p }: { title: string; p: Party }) {
   return (
@@ -110,10 +111,14 @@ export default function InvoiceDetailScreen() {
                 ]} />
               </Card>
               <Card title="Items">
-                <LineItems lines={(inv.items ?? []).map((i) => ({
-                  id: i.id, name: i.productName, qty: i.quantity, unit: i.unit, rate: i.rate, amount: i.lineTotal,
-                  note: [`HSN ${i.hsnCode ?? '—'}`, `GST ${i.taxRate}%`, i.discountAmount > 0 ? `disc ${i.discountPercent}%` : null, i.returnedQuantity > 0 ? `returned ${quantity(i.returnedQuantity)}` : null].filter(Boolean).join(' · '),
-                }))} />
+                <LineItems lines={[...(inv.items ?? []).map((i) => ({
+                  id: i.id, name: i.freeItem ? `${i.productName} (free)` : i.productName, qty: i.quantity, unit: i.unit, rate: i.rate, amount: i.lineTotal,
+                  note: [`HSN ${i.hsnCode ?? '—'}`, `GST ${i.taxRate}%`, i.discountAmount > 0 ? `disc ${i.discountPercent}%` : null,
+                    i.schemeName ? `scheme ${i.schemeName}` : null, i.unitFactor !== 1 ? `1 ${i.unit} = ${Number(i.unitFactor)}` : null,
+                    i.batchDetails && !i.batchDetails.startsWith('BATCH:') ? `batch ${i.batchDetails}` : null,
+                    i.serialNumbers.length ? `serial ${i.serialNumbers.join(', ')}` : null,
+                    i.returnedQuantity > 0 ? `returned ${quantity(i.returnedQuantity)}` : null].filter(Boolean).join(' · '),
+                })), ...(inv.charges ?? []).map((c) => ({ id: c.id, name: c.description, qty: 1, unit: '', rate: c.amount, amount: c.total, note: `SAC ${c.sacCode ?? '—'} · GST ${c.taxRate}%` }))]} />
                 <View style={{ height: 8 }} />
                 <TaxBreakdown t={inv} />
                 <Text variant="xs" color="muted" style={{ marginTop: 8 }}>{inv.amountInWords ?? 'Amount in words is calculated on generation'}</Text>
@@ -130,11 +135,12 @@ export default function InvoiceDetailScreen() {
               )}
               <Card title="Details">
                 <KeyValue items={[
-                  ['Source', inv.source === 'ORDER' ? 'Order' : 'Admin-created'], ['Buyer order no.', inv.buyerOrderNumber], ['Transport', inv.transport], ['Vehicle', inv.vehicleNumber],
+                  ['Source', inv.source === 'ORDER' ? 'Order' : inv.source === 'CHALLAN' ? 'Delivery challan' : 'Admin-created'], ['Buyer order no.', inv.buyerOrderNumber], ['Transport', inv.transport], ['Vehicle', inv.vehicleNumber],
                   ['Destination', inv.destination], ['E-invoice', titleCase(inv.einvoiceStatus)], ['IRN', inv.irn], ['Generated', inv.generatedAt ? dateTime(inv.generatedAt) : undefined], ['Notes', inv.notes],
                 ]} />
                 {inv.orderId && <Button size="sm" variant="ghost" icon="shopping-cart" style={{ alignSelf: 'flex-start', marginTop: 8 }} onPress={() => router.push(`/admin/order/${inv.orderId}`)}>Open order {inv.orderNumber}</Button>}
               </Card>
+              <InvoiceTradeSection inv={inv} onChanged={refresh} />
               <Card title="WhatsApp delivery">
                 {messages.isLoading ? <Spinner /> : messages.data?.length ? (
                   <View style={{ gap: 10 }}>

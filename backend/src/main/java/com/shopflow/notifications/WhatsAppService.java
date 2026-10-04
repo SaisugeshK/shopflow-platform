@@ -19,6 +19,7 @@ import com.shopflow.integrations.ProviderException;
 import com.shopflow.integrations.whatsapp.WhatsAppProvider;
 import com.shopflow.integrations.whatsapp.WhatsAppProvider.StatusEvent;
 import com.shopflow.security.CurrentUser;
+import com.shopflow.tenancy.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -189,19 +190,23 @@ public class WhatsAppService {
     /** Sweeper: retries due messages and resumes anything left QUEUED/SENDING by a restart. */
     @Scheduled(fixedDelayString = "PT30S", initialDelayString = "PT30S")
     public void retryDue() {
-        List<UUID> due = jdbc.queryForList("""
-                SELECT id FROM whatsapp_messages
+        // Sweeps every tenant (platform read), then delivers each message inside its own tenant (§0B.3).
+        List<Map<String, Object>> due = TenantContext.callAsPlatform(() -> jdbc.queryForList("""
+                SELECT id, business_id FROM whatsapp_messages
                 WHERE (status = 'FAILED' AND next_retry_at IS NOT NULL AND next_retry_at <= now())
                    OR (status IN ('QUEUED','SENDING') AND updated_at < now() - interval '2 minutes')
                 ORDER BY queued_at LIMIT 50
-                """, UUID.class);
-        for (UUID id : due) {
-            tx.executeWithoutResult(s -> messages.findForUpdate(id).ifPresent(m -> {
-                if (m.getStatus() == WhatsAppMessage.Status.SENDING) {
-                    m.setStatus(WhatsAppMessage.Status.QUEUED);
-                }
-            }));
-            dispatch(id);
+                """));
+        for (Map<String, Object> row : due) {
+            UUID id = (UUID) row.get("id");
+            TenantContext.runInTenant((UUID) row.get("business_id"), () -> {
+                tx.executeWithoutResult(s -> messages.findForUpdate(id).ifPresent(m -> {
+                    if (m.getStatus() == WhatsAppMessage.Status.SENDING) {
+                        m.setStatus(WhatsAppMessage.Status.QUEUED);
+                    }
+                }));
+                dispatch(id);
+            });
         }
     }
 
@@ -219,7 +224,11 @@ public class WhatsAppService {
         }
         int applied = 0;
         for (StatusEvent e : events) {
-            Boolean ok = tx.execute(s -> {
+            // The provider knows nothing about tenants: find the message's tenant first (platform lookup).
+            UUID tenant = TenantContext.callAsPlatform(() -> jdbc.queryForList(
+                    "SELECT business_id FROM whatsapp_messages WHERE provider = ? AND provider_message_id = ?", UUID.class,
+                    provider.name(), e.providerMessageId())).stream().findFirst().orElse(null);
+            java.util.function.Supplier<Boolean> work = () -> tx.execute(s -> {
                 int inserted = jdbc.update("""
                         INSERT INTO whatsapp_webhook_events (id, provider, event_id, signature_valid, payload, received_at)
                         VALUES (?, ?, ?, TRUE, ?, ?) ON CONFLICT (provider, event_id) DO NOTHING
@@ -229,6 +238,7 @@ public class WhatsAppService {
                 }
                 return messages.findByProviderMessageId(provider.name(), e.providerMessageId()).map(m -> apply(m, e)).orElse(false);
             });
+            Boolean ok = tenant == null ? TenantContext.callAsPlatform(work) : TenantContext.callInTenant(tenant, work);
             if (Boolean.TRUE.equals(ok)) {
                 applied++;
             }

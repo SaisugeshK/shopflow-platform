@@ -61,7 +61,9 @@ export default function RegisterScreen() {
       }>
         <View style={{ gap: 4 }}>
           <Text variant="h1" accessibilityRole="header">Register your shop</Text>
-          <Text variant="small" color="muted">Mobile +91 {reg?.mobile} is verified. The shop reviews your details before you can order.</Text>
+          <Text variant="small" color="muted">
+            Mobile +91 {reg?.mobile} is verified.{reg?.business ? ` You are registering with ${reg.business.name}.` : ''} The shop reviews your details before you can order.
+          </Text>
         </View>
         <Card title="Business">
           <View style={{ gap: 14 }}>

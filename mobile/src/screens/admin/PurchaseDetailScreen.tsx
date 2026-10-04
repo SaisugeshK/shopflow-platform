@@ -69,7 +69,11 @@ export default function PurchaseDetailScreen() {
               <Card title="Items">
                 <LineItems lines={(p.items ?? []).map((i) => ({
                   id: i.id, name: i.productName, qty: i.quantity, unit: i.unit, rate: i.rate, amount: i.lineTotal,
-                  note: [`GST ${i.taxRate}%`, i.discountAmount > 0 ? `disc ${money(i.discountAmount)}` : null, i.returnedQuantity > 0 ? `returned ${quantity(i.returnedQuantity)}` : null].filter(Boolean).join(' · '),
+                  note: [`GST ${i.taxRate}%`, i.discountAmount > 0 ? `disc ${money(i.discountAmount)}` : null,
+                    i.unitFactor !== 1 ? `1 ${i.unit} = ${Number(i.unitFactor)}` : null,
+                    i.batchNumber ? `batch ${i.batchNumber}${i.expiryDate ? ` exp ${i.expiryDate}` : ''}` : null,
+                    i.serialNumbers.length ? `serial ${i.serialNumbers.join(', ')}` : null,
+                    i.returnedQuantity > 0 ? `returned ${quantity(i.returnedQuantity)}` : null].filter(Boolean).join(' · '),
                 }))} />
                 <View style={{ height: 8 }} />
                 <TaxBreakdown t={p} />

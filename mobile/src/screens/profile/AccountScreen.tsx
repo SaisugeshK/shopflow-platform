@@ -8,11 +8,14 @@ import { EmptyState, QueryState } from '@/components/ui/Feedback'
 import { Field, Input, Select } from '@/components/ui/Form'
 import { ConfirmDialog, Sheet } from '@/components/ui/Overlay'
 import { Screen } from '@/components/ui/Screen'
+import { PoweredBy } from '@/components/ui/BusinessBrand'
+import { BusinessSwitcher } from '@/components/ui/TenantPicker'
 import { Text } from '@/components/ui/Text'
 import { toast } from '@/components/ui/Toast'
 import { useSignOut } from '@/features/session'
 import { api } from '@/services/api'
 import type { Address, CustomerDetail } from '@/services/types'
+import { useModule } from '@/store/auth'
 import { colors } from '@/theme/tokens'
 import { STATE_OPTIONS } from '@/utils/india'
 
@@ -22,6 +25,8 @@ const EMPTY_ADDRESS = { label: '', addressLine1: '', addressLine2: '', city: '',
 export default function AccountScreen() {
   const qc = useQueryClient()
   const signOut = useSignOut()
+  const quotationsOn = useModule('QUOTATIONS')
+  const projectsOn = useModule('PROJECT_ACCOUNTS')
   const [adding, setAdding] = useState(false)
   const [a, setA] = useState(EMPTY_ADDRESS)
   const [edit, setEdit] = useState<{ email: string; alternateMobile: string; gstin: string } | null>(null)
@@ -80,10 +85,14 @@ export default function AccountScreen() {
         <ListRow icon="credit-card" title="Payment history" onPress={() => router.push('/shop/payments')} />
         <ListRow icon="book-open" title="Credit & statement" onPress={() => router.push('/shop/outstanding')} />
         <ListRow icon="rotate-ccw" title="Returns" onPress={() => router.push('/shop/returns')} />
+        {quotationsOn && <ListRow icon="file-text" title="Quotations" onPress={() => router.push('/shop/quotations')} />}
+        {projectsOn && <ListRow icon="map-pin" title="Projects" onPress={() => router.push('/shop/projects')} />}
         <ListRow icon="bell" title="Notifications" onPress={() => router.push('/shop/notifications')} />
       </Card>
+      <BusinessSwitcher />
       <Text variant="xs" color="muted" align="center">To change the shop name or registered mobile, contact the shop.</Text>
       <Button variant="secondary" icon="log-out" onPress={() => setConfirmSignOut(true)}>Sign out</Button>
+      <PoweredBy />
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="Add address" footer={<Button block loading={addAddress.isPending} disabled={!addressValid} onPress={() => addAddress.mutate()}>Save address</Button>}>
         <Field label="Label"><Input value={a.label} onChangeText={(t) => setA({ ...a, label: t })} placeholder="e.g. Godown" accessibilityLabel="Label" /></Field>

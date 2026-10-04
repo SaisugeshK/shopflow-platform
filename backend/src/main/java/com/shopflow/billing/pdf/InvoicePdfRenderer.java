@@ -261,6 +261,17 @@ public class InvoicePdfRenderer {
             if (i.getDescription() != null) {
                 desc.add(new Chunk("\n" + i.getDescription(), SMALL));
             }
+            if (i.isFreeItem()) {
+                desc.add(new Chunk("\nFree goods" + (i.getSchemeName() != null ? " (" + i.getSchemeName() + ")" : ""), SMALL));
+            } else if (i.getSchemeName() != null) {
+                desc.add(new Chunk("\nScheme: " + i.getSchemeName(), SMALL));
+            }
+            if (i.getBatchDetails() != null && !i.getBatchDetails().startsWith("BATCH:")) {
+                desc.add(new Chunk("\nBatch: " + i.getBatchDetails(), SMALL));
+            }
+            if (i.getSerialNumbers() != null && !i.getSerialNumbers().isBlank()) {
+                desc.add(new Chunk("\nSerial no.: " + i.getSerialNumbers().replace(",", ", "), SMALL));
+            }
             PdfPCell d = new PdfPCell(desc);
             d.setBorderColor(BORDER);
             d.setPadding(3);
@@ -278,6 +289,27 @@ public class InvoicePdfRenderer {
                 t.addCell(num(money(i.getSgstAmount()), Element.ALIGN_RIGHT));
             }
             t.addCell(num(money(i.getLineTotal()), Element.ALIGN_RIGHT));
+        }
+        // Invoice-level charges (transport, loading…) with their own GST.
+        for (com.shopflow.billing.InvoiceCharge c : inv.getCharges()) {
+            t.addCell(num("", Element.ALIGN_CENTER));
+            PdfPCell d = new PdfPCell(new Phrase(c.displayName(), BOLD));
+            d.setBorderColor(BORDER);
+            d.setPadding(3);
+            t.addCell(d);
+            t.addCell(num(nz(c.getSacCode()), Element.ALIGN_CENTER));
+            t.addCell(num("", Element.ALIGN_RIGHT));
+            t.addCell(num(money(c.getAmount()), Element.ALIGN_RIGHT));
+            t.addCell(num("", Element.ALIGN_RIGHT));
+            t.addCell(num(money(c.getAmount()), Element.ALIGN_RIGHT));
+            t.addCell(num(pct(c.getTaxRate()), Element.ALIGN_RIGHT));
+            if (igst) {
+                t.addCell(num(money(c.getIgstAmount()), Element.ALIGN_RIGHT));
+            } else {
+                t.addCell(num(money(c.getCgstAmount()), Element.ALIGN_RIGHT));
+                t.addCell(num(money(c.getSgstAmount()), Element.ALIGN_RIGHT));
+            }
+            t.addCell(num(money(c.getTotal()), Element.ALIGN_RIGHT));
         }
         return t;
     }

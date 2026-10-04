@@ -20,7 +20,8 @@ function useAddToCart() {
   const qc = useQueryClient()
   const toast = useToast()
   return useMutation({
-    mutationFn: ({ productId, qty }: { productId: string; qty: number }) => api.post<Cart>('/api/v1/cart/items', { productId, quantity: String(qty) }),
+    mutationFn: ({ productId, qty, unit }: { productId: string; qty: number; unit?: string }) =>
+      api.post<Cart>('/api/v1/cart/items', { productId, quantity: String(qty), unit }),
     onSuccess: (cart) => { qc.setQueryData(['cart'], cart); toast.success('Added to cart') },
     onError: (e) => toast.error(e),
   })
@@ -155,6 +156,7 @@ export function CatalogPage() {
 export function CatalogProductPage() {
   const { id } = useParams()
   const [qty, setQty] = useState(1)
+  const [unit, setUnit] = useState('')
   const [image, setImage] = useState(0)
   const add = useAddToCart()
   const navigate = useNavigate()
@@ -183,18 +185,36 @@ export function CatalogProductPage() {
                 <h1>{p.name}</h1>
                 <span className="xs muted">SKU {p.sku}{p.hsnCode ? ` · HSN ${p.hsnCode}` : ''}</span>
               </div>
-              <div className="row" style={{ alignItems: 'baseline' }}>
-                <span className="price" style={{ fontSize: '1.75rem' }}>{money(p.price)}</span>
-                {p.mrp && p.mrp > p.price && <span className="mrp">MRP {money(p.mrp)}</span>}
-                {p.customPrice && <Badge tone="success">Your special price</Badge>}
-              </div>
-              <span className="small muted">Per {p.unit}, excluding {p.gstRate}% GST. Final prices and tax are confirmed at checkout.</span>
+              {(() => {
+                const chosen = p.units.find((u) => u.unit === unit)
+                return (
+                  <>
+                    <div className="row" style={{ alignItems: 'baseline' }}>
+                      <span className="price" style={{ fontSize: '1.75rem' }}>{money(chosen ? chosen.price : p.price)}</span>
+                      {!chosen && p.mrp && p.mrp > p.price && <span className="mrp">MRP {money(p.mrp)}</span>}
+                      {p.customPrice && <Badge tone="success">Your special price</Badge>}
+                    </div>
+                    <span className="small muted">Per {chosen ? `${chosen.unit} (${Number(chosen.factor)} ${p.unit})` : p.unit}, excluding {p.gstRate}% GST. Final prices and tax are confirmed at checkout.</span>
+                  </>
+                )
+              })()}
+              {p.units.length > 0 && (
+                <div className="row" role="radiogroup" aria-label="Buy in" style={{ flexWrap: 'wrap', gap: 6 }}>
+                  {[{ unit: p.unit, label: p.unit }, ...p.units.map((u) => ({ unit: u.unit, label: `${u.unit} of ${Number(u.factor)}` }))].map((u) => (
+                    <button key={u.unit} type="button" role="radio" aria-checked={(unit || p.unit) === u.unit}
+                      className={`btn btn-sm ${(unit || p.unit) === u.unit ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setUnit(u.unit === p.unit ? '' : u.unit)}>
+                      {u.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {p.variantAttributes && <span className="small">{p.variantAttributes}</span>}
               <div className="row"><StatusBadge status={p.stockStatus} />{p.availableQuantity != null && <span className="small muted">{quantity(p.availableQuantity)} {p.unit} available</span>}</div>
               {p.description && <p>{p.description}</p>}
               <div className="sticky-cta row" style={{ flexWrap: 'nowrap' }}>
-                <QuantityStepper value={qty} onChange={setQty} min={1} max={p.availableQuantity ?? undefined} disabled={p.stockStatus === 'OUT_OF_STOCK'} />
+                <QuantityStepper value={qty} onChange={setQty} min={1} max={unit ? undefined : p.availableQuantity ?? undefined} disabled={p.stockStatus === 'OUT_OF_STOCK'} />
                 <Button className="grow" size="lg" icon={<ShoppingCart size={18} />} loading={add.isPending} disabled={p.stockStatus === 'OUT_OF_STOCK'}
-                  onClick={() => add.mutate({ productId: p.id, qty }, { onSuccess: () => navigate('/shop/cart') })}>Add to cart</Button>
+                  onClick={() => add.mutate({ productId: p.id, qty, unit: unit || undefined }, { onSuccess: () => navigate('/shop/cart') })}>Add to cart</Button>
               </div>
             </div>
           </div>
@@ -234,7 +254,8 @@ export function CartPage() {
                     <div className="product-image" style={{ width: 72, height: 72, borderRadius: 10, flexShrink: 0 }}>{i.imageUrl ? <img src={i.imageUrl} alt="" /> : <Package size={24} />}</div>
                     <div className="grow stack-sm" style={{ gap: 4 }}>
                       <Link to={`/shop/products/${i.productId}`} style={{ fontWeight: 600, color: 'var(--color-text)' }}>{i.productName}</Link>
-                      <span className="xs muted">{money(i.unitPrice)} / {i.unit} · {i.taxRate}% GST</span>
+                      <span className="xs muted">{money(i.unitPrice)} / {i.unit}{i.unitFactor !== 1 ? ` (${Number(i.unitFactor)} units)` : ''} · {i.taxRate}% GST</span>
+                      {i.schemeName && <span className="xs success-text">{i.freeQuantity ? `${quantity(i.freeQuantity)} free · ` : ''}{i.schemeName}</span>}
                       {i.issue && <span className="xs danger-text">{i.issue}</span>}
                       <div className="row-between">
                         <QuantityStepper value={Number(i.quantity)} min={1} onChange={(v) => update.mutate({ id: i.id, qty: v })} label={`Quantity of ${i.productName}`} />
