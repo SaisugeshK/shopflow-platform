@@ -3,7 +3,7 @@ import { login } from './helpers'
 
 /**
  * SaaS operations (architecture §0B.14): a business signs up from the public page, the Super Admin (+919000000009)
- * approves it and the owner signs in; the demo tenant's owner sees the plan, branches and moves stock to the godown
+ * approves it and the owner signs in; the demo tenant's owner sees branches and moves stock to the godown
  * (dev seed V9005).
  */
 test.describe.serial('self-signup approved by the Super Admin', () => {
@@ -45,9 +45,7 @@ test.describe.serial('self-signup approved by the Super Admin', () => {
     await page.waitForTimeout(Math.max(0, otpSentAt + 31_000 - Date.now()))
     await login(page, mobile)
     await expect(page).toHaveURL(/\/app$/)
-    await page.goto('/app/settings')
-    await page.getByRole('tab', { name: 'Plan & usage' }).click()
-    await expect(page.getByText('Free plan')).toBeVisible()
+    await expect(page.getByText(business).first()).toBeVisible()
   })
 })
 

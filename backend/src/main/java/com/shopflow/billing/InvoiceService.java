@@ -104,16 +104,13 @@ public class InvoiceService {
     private final TrackingService tracking;
     private final TenantModules modules;
 
-    private final com.shopflow.saas.PlanLimits limits;
-
     public InvoiceService(InvoiceRepository invoices, OrderRepository orders, CustomerService customers, CreditService credit,
                           ProductService products, PricingService pricing, InventoryService inventory,
                           TaxCalculator calculator, CustomerLedgerService ledger, PaymentService payments,
                           CreditNoteService creditNotes, DocumentSequenceService sequences, IdempotencyService idempotency,
                           BusinessSettingsService settings, BusinessContext businessContext, EInvoiceProvider einvoice,
                           AppProperties properties, JdbcTemplate jdbc, NotificationService notifications, AuditService audit,
-                          ProductOptionsService options, SchemeService schemes, TrackingService tracking, TenantModules modules, com.shopflow.saas.PlanLimits limits) {
-        this.limits = limits;
+                          ProductOptionsService options, SchemeService schemes, TrackingService tracking, TenantModules modules) {
         this.options = options;
         this.schemes = schemes;
         this.tracking = tracking;
@@ -555,7 +552,6 @@ public class InvoiceService {
             }
             return invoice;
         }
-        limits.check(com.shopflow.saas.PlanLimits.Limit.INVOICES_PER_MONTH);
         Customer customer = customers.get(invoice.getCustomerId());
         Order order = null;
         if (invoice.getOrderId() != null) {

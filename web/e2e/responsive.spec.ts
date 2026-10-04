@@ -132,6 +132,6 @@ test.describe('responsive @responsive', () => {
     const res = await page.request.get('/api/v1/platform/tenants', { headers: { Authorization: `Bearer ${token}`, 'X-Client-Type': 'web' } })
     const tenant = (await res.json()).data[0]?.id as string | undefined
     report(await sweep(page, ['/platform', '/platform/tenants', '/platform/tenants/new', '/platform/industries', '/platform/admins',
-      '/platform/audit', '/platform/signups', '/platform/plans', ...(tenant ? [`/platform/tenants/${tenant}`] : [])]))
+      '/platform/audit', '/platform/signups', ...(tenant ? [`/platform/tenants/${tenant}`] : [])]))
   })
 })

@@ -51,7 +51,7 @@ public class BranchController {
     @PostMapping("/branches")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('SETTINGS_MANAGE')")
-    @Operation(summary = "Add a branch or warehouse", description = "Errors: PLAN_LIMIT_REACHED.")
+    @Operation(summary = "Add a branch or warehouse")
     public ApiResponse<BranchResponse> create(@Valid @RequestBody BranchRequest request) {
         return ApiResponse.ok(service.create(request));
     }

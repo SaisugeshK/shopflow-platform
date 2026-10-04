@@ -14,7 +14,6 @@ import com.shopflow.inventory.StockMovement.MovementType;
 import com.shopflow.inventory.StockTrace;
 import com.shopflow.products.Product;
 import com.shopflow.products.ProductService;
-import com.shopflow.saas.PlanLimits;
 import com.shopflow.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -84,17 +83,15 @@ public class BranchService {
     private final ProductService products;
     private final DocumentSequenceService sequences;
     private final BusinessContext businessContext;
-    private final PlanLimits limits;
     private final AuditService audit;
 
     public BranchService(JdbcTemplate jdbc, InventoryService inventory, ProductService products, DocumentSequenceService sequences,
-                         BusinessContext businessContext, PlanLimits limits, AuditService audit) {
+                         BusinessContext businessContext, AuditService audit) {
         this.jdbc = jdbc;
         this.inventory = inventory;
         this.products = products;
         this.sequences = sequences;
         this.businessContext = businessContext;
-        this.limits = limits;
         this.audit = audit;
     }
 
@@ -112,7 +109,6 @@ public class BranchService {
     @Transactional
     public BranchResponse create(BranchRequest r) {
         ensureDefault();
-        limits.check(PlanLimits.Limit.BRANCHES);
         UUID id = UUID.randomUUID();
         Timestamp now = Timestamp.from(Instant.now());
         String code = r.code().trim().toUpperCase(Locale.ROOT);

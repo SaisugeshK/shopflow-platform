@@ -79,7 +79,7 @@ Last updated: 2026-10-03.
 | Stage 4 — React Native mobile | Built: one Expo app for customers and Owner/Admin (see below). |
 | Stage 5 — mobile acceptance | Partly verified: unit tests, Android/iOS bundles and Playwright journeys on a phone viewport pass; real-device testing, MASVS review, push notifications and deep links are open. |
 | GCP demo deployment | Live on Cloud Run as one image (web build bundled into the backend jar), Cloud SQL database `shopflow`, private GCS bucket for images; still mock providers (D-030). |
-| Multi-tenant SaaS (§0B) | Approved 2026-10-03. Phases 0 (branding + responsiveness), 1 (tenancy, RLS, Super Admin console, modules, join links), 2 (industry options), 3 (purchase orders + supplier portal), 4 (trade documents) and 5 (plans, self-signup, custom domains, branches, Super Admin on mobile) done 2026-10-04, not yet deployed. |
+| Multi-tenant SaaS (§0B) | Approved 2026-10-03. Phases 0 (branding + responsiveness), 1 (tenancy, RLS, Super Admin console, modules, join links), 2 (industry options), 3 (purchase orders + supplier portal), 4 (trade documents) and 5 (self-signup, custom domains, branches, Super Admin on mobile) done 2026-10-04, not yet deployed. |
 
 ### Approved changes to this document
 
@@ -436,7 +436,7 @@ stock adjustment and purchase payment numbers); enables RLS. Platform admins com
 | 2 | Industry options and templates (Grocery, Textile, Construction first) | Web + mobile |
 | 3 | Purchase orders, quotation rounds, goods receipt, supplier portal | Web + mobile |
 | 4 | Quotations, delivery challan, e-way bill, job work, commission, project accounts | Web + mobile |
-| 5 | Plans/limits/usage, self-signup with approval, branches/warehouses, custom domains, Super Admin on mobile | Web + mobile |
+| 5 | Self-signup with approval, branches/warehouses, custom domains, Super Admin on mobile (plans/limits dropped) | Web + mobile |
 
 A phase is done only when: backend tests pass; **tenant-isolation tests** pass (two tenants: every list/detail API
 as tenant A returns none of tenant B's data, guessed IDs return 404, direct queries with the wrong tenant return
@@ -445,16 +445,15 @@ Deployment to GCP happens only after the product owner approves.
 
 ## 0B.14 SaaS operations (Phase 5)
 
-**As built (migration V12, packages `com.shopflow.saas` and `com.shopflow.branches`, decision D-040):**
-- **Plans and limits:** `plans` (FREE, STARTER, GROWTH, ENTERPRISE) and `businesses.plan_code`. `PlanLimits` checks a
-  limit when a staff user, product, customer, branch or file is added and when an invoice is generated (per calendar
-  month); over the limit returns `403 PLAN_LIMIT_REACHED`. Owners see plan and usage in Settings → Plan & usage
-  (`GET /subscription`). The Super Admin changes plans (`PUT /platform/tenants/{id}/plan`, `GET /platform/plans`).
+**As built (migrations V12–V13, packages `com.shopflow.saas` and `com.shopflow.branches`, decision D-040):**
+- **No plans or limits:** subscription plans with usage limits were built (V12) and removed again (V13) at the
+  product owner's request; every business works without limits.
 - **Self-signup:** `/signup` (web and app). `POST /public/signup/otp` → `POST /public/signup` (OTP verified) stores a
   `tenant_signups` row (PENDING; one pending request per mobile). The Super Admin lists, approves (creates the
-  business, owner and template exactly like "Register business", with a chosen plan and optional code) or rejects
-  with a reason (`/platform/signups/...`). `GET /public/signup/status`, `/public/plans` and `/public/industries`
-  are public.
+  business, owner and template exactly like "Register business", with an optional code) or rejects with a reason
+  (`/platform/signups/...`). `GET /public/signup/status` and `/public/industries` are public.
+- **"Powered by" footer** (web and app) names and links TechSpark Software Solutions
+  (https://techsparksoftwaresolutions.com). Number fields show no up/down spinner arrows.
 - **Custom domains:** `businesses.custom_domain` (unique), set with `PUT /platform/tenants/{id}/domain`.
   `GET /public/tenants/by-host/{host}` lets the web sign-in page opened at that domain act as the business's join
   link.
@@ -465,9 +464,9 @@ Deployment to GCP happens only after the product owner approves.
   stock movement happens at that branch and outbound movements check the branch's own stock. Transfers post
   `TRANSFER_OUT` and `TRANSFER_IN` (batches follow the stock; serial-tracked products are refused). A branch that
   still holds stock cannot be closed.
-- **Super Admin on mobile:** overview, business search, business detail (usage, plan, modules, suspend/reactivate)
+- **Super Admin on mobile:** overview, business search, business detail (usage, modules, suspend/reactivate)
   and sign-up approvals. Creating a business and support access stay on the web console.
-- Dev seed V9005: BRANCHES on for "main" with "Central Godown"; demo tenants on Growth; one pending sign-up
+- Dev seed V9005: BRANCHES on for "main" with "Central Godown"; one pending sign-up
   ("Lakshmi Paints & Hardware"). The dev profile allows more OTP requests (40 per number per 15 min, 1000 per IP per
   hour) so the end-to-end suites can sign the demo users in repeatedly; production limits are unchanged.
 - Sign-in records `last_login_at` without the entity version check, so the same user signing in on two devices at

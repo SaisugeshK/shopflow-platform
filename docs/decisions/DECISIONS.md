@@ -319,12 +319,10 @@ dialogs on phones) are in architecture §0B.11.
 Inside a tenant the UI shows that business's name and logo (web sidebar and tab title, customer shop header, mobile
 headers, workspace switcher). "ShopFlow" is the product name ("Powered by ShopFlow", sign-in, Super Admin console).
 
-## D-040 Plans, self-signup, custom domains and branches (Phase 5)
+## D-040 Self-signup, custom domains and branches (Phase 5)
 
-- **Plans** (`plans` catalogue: Free, Starter, Growth, Enterprise) cap staff users, products, customers, generated
-  invoices per month, branches and file storage; a missing limit is unlimited. Limits are checked only when something
-  new is created (`403 PLAN_LIMIT_REACHED`); data above a lower limit stays. Only the Super Admin changes a plan.
-  Businesses that existed before V12 are on Enterprise; new ones default to Starter.
+- **No plans or usage limits.** Subscription plans with limits were built in V12 and removed in V13 at the product
+  owner's request (2026-10-04): every business works without limits and nothing shows a plan.
 - **Self-signup**: the owner proves the mobile number by OTP and sends the business details; nothing is created until
   the Super Admin approves (which runs the same "Register business" path) or rejects with a reason.
 - **Custom domains**: a business may have one domain; the sign-in page opened at that domain behaves like its join
@@ -334,5 +332,7 @@ headers, workspace switcher). "ShopFlow" is the product name ("Powered by ShopFl
   movement without a branch stay correct. Clients send the working branch as `X-Branch-Id`; outbound movements check
   the branch's own stock. Transfers move stock between branches (serial-tracked products are not transferred because
   serials have no branch).
-- **Super Admin on mobile**: businesses, plan, modules, suspension and sign-up approvals; creating a business and
-  support access stay on the web console.
+- **Super Admin on mobile**: businesses, modules, suspension and sign-up approvals; creating a business and support
+  access stay on the web console.
+- **Branding**: every "Powered by ShopFlow" footer also names and links the company, TechSpark Software Solutions
+  (https://techsparksoftwaresolutions.com).

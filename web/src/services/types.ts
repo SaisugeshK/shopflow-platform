@@ -1051,28 +1051,7 @@ export interface PortalAccess {
   lastLoginAt?: string
 }
 
-// ---------------------------------------------------------------- SaaS: plans, sign-ups, branches (§0B.14)
-
-/** A plan; missing limits are unlimited. */
-export interface Plan {
-  code: string
-  name: string
-  description?: string
-  priceMonthly?: number
-  maxStaff?: number
-  maxProducts?: number
-  maxCustomers?: number
-  maxInvoicesPerMonth?: number
-  maxBranches?: number
-  maxStorageMb?: number
-  active: boolean
-}
-
-export interface Subscription {
-  plan: Plan
-  usage: { staff: number; products: number; customers: number; invoicesThisMonth: number; branches: number; storageMb: number }
-  planChangedAt?: string
-}
+// ---------------------------------------------------------------- SaaS: sign-ups, branches (§0B.14)
 
 export interface Signup {
   id: string
@@ -1086,7 +1065,6 @@ export interface Signup {
   city?: string
   gstin?: string
   industry: string
-  planCode: string
   message?: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   decisionReason?: string

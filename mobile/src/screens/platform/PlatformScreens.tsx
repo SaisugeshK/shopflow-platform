@@ -13,23 +13,19 @@ import { toast } from '@/components/ui/Toast'
 import { BusinessSwitcher } from '@/components/ui/TenantPicker'
 import { useSignOut } from '@/features/session'
 import { api, ApiError } from '@/services/api'
-import type { Plan, Signup } from '@/services/types'
+import type { Signup } from '@/services/types'
 import { useAuthStore } from '@/store/auth'
 import { dateTime, money, titleCase } from '@/utils/format'
 
-interface TenantSummary { id: string; tenantCode: string; name: string; industryLabel: string; status: string; city?: string; customers: number; planCode: string }
+interface TenantSummary { id: string; tenantCode: string; name: string; industryLabel: string; status: string; city?: string; customers: number }
 interface ModuleState { code: string; label: string; enabled: boolean; requires: string[] }
 interface TenantDetail {
   id: string; tenantCode: string; name: string; industryLabel: string; status: 'ACTIVE' | 'SUSPENDED'; statusReason?: string
-  ownerName?: string; ownerMobile?: string; city?: string; state?: string; gstin?: string; createdAt: string; planCode: string; planName: string; customDomain?: string
+  ownerName?: string; ownerMobile?: string; city?: string; state?: string; gstin?: string; createdAt: string; customDomain?: string
   usage: { users: number; customers: number; products: number; invoices: number; salesLast30Days: number; lastActivityAt?: string }
   modules: ModuleState[]
 }
 interface Overview { tenants: number; activeTenants: number; suspendedTenants: number; users: number; salesLast30Days: number }
-
-function usePlans() {
-  return useQuery({ queryKey: ['platform', 'plans'], queryFn: () => api.get<Plan[]>('/api/v1/platform/plans'), staleTime: 300_000 })
-}
 
 /** Super Admin home on the app: totals, businesses and pending sign-ups. */
 export function PlatformHomeScreen() {
@@ -59,7 +55,7 @@ export function PlatformHomeScreen() {
         {(d) => (
           <Card padded={false}>
             {d.map((t) => (
-              <ListRow key={t.id} title={t.name} subtitle={`${t.industryLabel} · ${titleCase(t.planCode)}${t.city ? ` · ${t.city}` : ''}`}
+              <ListRow key={t.id} title={t.name} subtitle={`${t.industryLabel}${t.city ? ` · ${t.city}` : ''}`}
                 meta={<View style={{ marginTop: 4, flexDirection: 'row' }}><StatusBadge status={t.status} /></View>}
                 right={<Text variant="small" color="muted">{t.customers} customers</Text>} onPress={() => router.push(`/platform/tenant/${t.id}`)} />
             ))}
@@ -73,22 +69,16 @@ export function PlatformHomeScreen() {
   )
 }
 
-/** One business: usage, status, plan and modules. */
+/** One business: usage, status and modules. */
 export function PlatformTenantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const qc = useQueryClient()
-  const plans = usePlans()
   const [confirm, setConfirm] = useState(false)
   const q = useQuery({ queryKey: ['platform', 'tenant', id], queryFn: () => api.get<TenantDetail>(`/api/v1/platform/tenants/${id}`) })
   const done = (t: TenantDetail, msg: string) => { toast.success(msg); setConfirm(false); qc.setQueryData(['platform', 'tenant', id], t); qc.invalidateQueries({ queryKey: ['platform', 'tenants'] }) }
   const status = useMutation({
     mutationFn: (reason: string) => api.post<TenantDetail>(`/api/v1/platform/tenants/${id}/${q.data?.status === 'ACTIVE' ? 'suspend' : 'reactivate'}`, { reason }),
     onSuccess: (t) => done(t, t.status === 'ACTIVE' ? 'Business reactivated' : 'Business suspended'),
-    onError: (e) => toast.error(e),
-  })
-  const plan = useMutation({
-    mutationFn: (planCode: string) => api.put<TenantDetail>(`/api/v1/platform/tenants/${id}/plan`, { planCode }),
-    onSuccess: (t) => done(t, `Plan changed to ${t.planName}`),
     onError: (e) => toast.error(e),
   })
   const modules = useMutation({
@@ -113,10 +103,7 @@ export function PlatformTenantScreen() {
                 <KeyValue items={[['Users', String(t.usage.users)], ['Customers', String(t.usage.customers)], ['Products', String(t.usage.products)],
                   ['Invoices', String(t.usage.invoices)], ['Sales, 30 days', money(t.usage.salesLast30Days)], ['Last activity', t.usage.lastActivityAt ? dateTime(t.usage.lastActivityAt) : 'None']]} />
               </Card>
-              <Card title="Plan">
-                <Select label="Plan" value={t.planCode} onChange={(v) => v !== t.planCode && plan.mutate(v)} options={(plans.data ?? []).map((p) => ({ value: p.code, label: p.name }))} />
-                {t.customDomain && <Text variant="xs" color="muted" style={{ marginTop: 6 }}>Custom domain: {t.customDomain}</Text>}
-              </Card>
+              {t.customDomain && <Text variant="xs" color="muted">Custom domain: {t.customDomain}</Text>}
               <Card title="Owner">
                 <KeyValue items={[['Name', t.ownerName], ['Mobile', t.ownerMobile], ['GSTIN', t.gstin], ['Place', [t.city, t.state].filter(Boolean).join(', ')]]} />
               </Card>
@@ -163,12 +150,10 @@ export function PlatformSignupsScreen() {
 
 function SignupSheet({ signup, onClose }: { signup: Signup; onClose: () => void }) {
   const qc = useQueryClient()
-  const plans = usePlans()
-  const [planCode, setPlanCode] = useState(signup.planCode)
   const [reason, setReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
   const m = useMutation({
-    mutationFn: (action: 'approve' | 'reject') => api.post<Signup>(`/api/v1/platform/signups/${signup.id}/${action}`, action === 'approve' ? { planCode } : { reason }),
+    mutationFn: (action: 'approve' | 'reject') => api.post<Signup>(`/api/v1/platform/signups/${signup.id}/${action}`, action === 'approve' ? {} : { reason }),
     onSuccess: (s) => { toast.success(s.status === 'APPROVED' ? 'Business created' : 'Request rejected', s.tenantCode); qc.invalidateQueries({ queryKey: ['platform'] }); onClose() },
   })
   const err = m.error instanceof ApiError ? m.error : null
@@ -184,7 +169,6 @@ function SignupSheet({ signup, onClose }: { signup: Signup; onClose: () => void 
       <KeyValue items={[['Owner', `${signup.ownerName} · ${signup.ownerMobile}`], ['Place', [signup.city, signup.state].filter(Boolean).join(', ')],
         ['Trade', titleCase(signup.industry)], ['GSTIN', signup.gstin], ['Message', signup.message], ['Received', dateTime(signup.createdAt)],
         ['Business code', signup.tenantCode], ['Reason', signup.decisionReason]]} />
-      {pending && !rejecting && <Field label="Plan"><Select label="Plan" value={planCode} onChange={setPlanCode} options={(plans.data ?? []).map((p) => ({ value: p.code, label: p.name }))} /></Field>}
       {pending && rejecting && <Field label="Reason" required><Input value={reason} onChangeText={setReason} multiline accessibilityLabel="Reason" /></Field>}
       {err && <Alert tone="danger">{err.message}</Alert>}
     </Sheet>

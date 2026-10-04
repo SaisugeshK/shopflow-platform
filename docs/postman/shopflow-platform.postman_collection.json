@@ -14516,793 +14516,6 @@
       ]
     },
     {
-      "name": "Plans & sign-up",
-      "item": [
-        {
-          "name": "Change a business's plan",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/tenants/{{id}}/plan",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "tenants",
-                "{{id}}",
-                "plan"
-              ]
-            },
-            "description": "Change a business's plan",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"planCode\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Set or clear a business's custom domain",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/tenants/{{id}}/domain",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "tenants",
-                "{{id}}",
-                "domain"
-              ]
-            },
-            "description": "Set or clear a business's custom domain",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"domain\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Ask for a ShopFlow account",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/public/signup",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "public",
-                "signup"
-              ]
-            },
-            "description": "Ask for a ShopFlow account\n\nVerifies the OTP and records the request for the Super Admin to approve.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"otp\": \"123456\",\n  \"mobileNumber\": \"+919000000001\",\n  \"businessName\": \"string\",\n  \"legalName\": \"string\",\n  \"ownerName\": \"string\",\n  \"email\": \"string\",\n  \"state\": \"Tamil Nadu\",\n  \"stateCode\": \"string\",\n  \"city\": \"Chennai\",\n  \"gstin\": \"string\",\n  \"industry\": \"string\",\n  \"planCode\": \"string\",\n  \"message\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (201 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Send an OTP to the owner's mobile for sign-up",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/public/signup/otp",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "public",
-                "signup",
-                "otp"
-              ]
-            },
-            "description": "Send an OTP to the owner's mobile for sign-up",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mobileNumber\": \"+919000000001\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Reject a sign-up request",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}/reject",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "signups",
-                "{{id}}",
-                "reject"
-              ]
-            },
-            "description": "Reject a sign-up request",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Example reason\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Approve: creates the business and its owner login",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}/approve",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "signups",
-                "{{id}}",
-                "approve"
-              ]
-            },
-            "description": "Approve: creates the business and its owner login",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"tenantCode\": \"string\",\n  \"planCode\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "This business's plan and usage",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/subscription",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "subscription"
-              ]
-            },
-            "description": "This business's plan and usage",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Status of the latest sign-up for a mobile number",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/public/signup/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "public",
-                "signup",
-                "status"
-              ],
-              "query": [
-                {
-                  "key": "mobileNumber",
-                  "value": "",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Status of the latest sign-up for a mobile number\n\nPENDING, APPROVED, REJECTED or NONE.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Plans on offer",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/public/plans",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "public",
-                "plans"
-              ]
-            },
-            "description": "Plans on offer",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Industries a business can sign up for",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/public/industries",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "public",
-                "industries"
-              ]
-            },
-            "description": "Industries a business can sign up for",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Business sign-up requests",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/signups",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "signups"
-              ],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Business sign-up requests",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Sign-up request",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "signups",
-                "{{id}}"
-              ]
-            },
-            "description": "Sign-up request",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "All plans",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Client-Type",
-                "value": "postman"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/platform/plans",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "platform",
-                "plans"
-              ]
-            },
-            "description": "All plans",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
-                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
-                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Platform (Super Admin)",
       "item": [
         {
@@ -15477,7 +14690,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Sample\",\n  \"legalName\": \"string\",\n  \"tenantCode\": \"string\",\n  \"industry\": \"string\",\n  \"state\": \"Tamil Nadu\",\n  \"stateCode\": \"string\",\n  \"city\": \"Chennai\",\n  \"gstin\": \"string\",\n  \"ownerName\": \"string\",\n  \"ownerMobile\": \"string\",\n  \"email\": \"string\",\n  \"modules\": {},\n  \"planCode\": \"string\"\n}",
+              "raw": "{\n  \"name\": \"Sample\",\n  \"legalName\": \"string\",\n  \"tenantCode\": \"string\",\n  \"industry\": \"string\",\n  \"state\": \"Tamil Nadu\",\n  \"stateCode\": \"string\",\n  \"city\": \"Chennai\",\n  \"gstin\": \"string\",\n  \"ownerName\": \"string\",\n  \"ownerMobile\": \"string\",\n  \"email\": \"string\",\n  \"modules\": {}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16317,6 +15530,574 @@
       ]
     },
     {
+      "name": "Sign-up",
+      "item": [
+        {
+          "name": "Set or clear a business's custom domain",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/tenants/{{id}}/domain",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "tenants",
+                "{{id}}",
+                "domain"
+              ]
+            },
+            "description": "Set or clear a business's custom domain",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ask for a ShopFlow account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/public/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "signup"
+              ]
+            },
+            "description": "Ask for a ShopFlow account\n\nVerifies the OTP and records the request for the Super Admin to approve.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"otp\": \"123456\",\n  \"mobileNumber\": \"+919000000001\",\n  \"businessName\": \"string\",\n  \"legalName\": \"string\",\n  \"ownerName\": \"string\",\n  \"email\": \"string\",\n  \"state\": \"Tamil Nadu\",\n  \"stateCode\": \"string\",\n  \"city\": \"Chennai\",\n  \"gstin\": \"string\",\n  \"industry\": \"string\",\n  \"message\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (201 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send an OTP to the owner's mobile for sign-up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/public/signup/otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "signup",
+                "otp"
+              ]
+            },
+            "description": "Send an OTP to the owner's mobile for sign-up",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNumber\": \"+919000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject a sign-up request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "signups",
+                "{{id}}",
+                "reject"
+              ]
+            },
+            "description": "Reject a sign-up request",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Example reason\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve: creates the business and its owner login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "signups",
+                "{{id}}",
+                "approve"
+              ]
+            },
+            "description": "Approve: creates the business and its owner login",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantCode\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Status of the latest sign-up for a mobile number",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/public/signup/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "signup",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "mobileNumber",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Status of the latest sign-up for a mobile number\n\nPENDING, APPROVED, REJECTED or NONE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Industries a business can sign up for",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/public/industries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "public",
+                "industries"
+              ]
+            },
+            "description": "Industries a business can sign up for",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Business sign-up requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/signups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "signups"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Business sign-up requests",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign-up request",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/platform/signups/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform",
+                "signups",
+                "{{id}}"
+              ]
+            },
+            "description": "Sign-up request",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Customer Pricing",
       "item": [
         {
@@ -16760,7 +16541,7 @@
                 "branches"
               ]
             },
-            "description": "Add a branch or warehouse\n\nErrors: PLAN_LIMIT_REACHED.",
+            "description": "Add a branch or warehouse",
             "auth": {
               "type": "bearer",
               "bearer": [

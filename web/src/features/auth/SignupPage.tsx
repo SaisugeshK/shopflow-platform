@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Feedback'
 import { Field, Input, OTPInput, PhoneInput, Select, Textarea } from '@/components/ui/Form'
 import { api, ApiError } from '@/services/api'
-import type { Plan } from '@/services/types'
-import { money } from '@/utils/format'
 import { GST_STATES, stateCodeOf } from '@/utils/india'
 
 interface Challenge { requestId: string; maskedMobile: string; expiresInSeconds: number; demoOtp?: string }
@@ -21,9 +19,8 @@ export function SignupPage() {
   const [mobile, setMobile] = useState('')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [otp, setOtp] = useState('')
-  const [f, setF] = useState({ businessName: '', ownerName: '', state: 'Tamil Nadu', city: '', gstin: '', email: '', industry: 'GROCERY', planCode: 'FREE', message: '' })
+  const [f, setF] = useState({ businessName: '', ownerName: '', state: 'Tamil Nadu', city: '', gstin: '', email: '', industry: 'GROCERY', message: '' })
   const [done, setDone] = useState(false)
-  const plans = useQuery({ queryKey: ['public-plans'], queryFn: () => api.get<Plan[]>('/api/v1/public/plans') })
   const industries = useQuery({ queryKey: ['public-industries'], queryFn: () => api.get<{ code: string; label: string; description: string }[]>('/api/v1/public/industries') })
   const sendOtp = useMutation({
     mutationFn: () => api.post<Challenge>('/api/v1/public/signup/otp', { mobileNumber: mobile }),
@@ -33,7 +30,7 @@ export function SignupPage() {
     mutationFn: () => api.post('/api/v1/public/signup', {
       requestId: challenge!.requestId, otp, mobileNumber: mobile, businessName: f.businessName, ownerName: f.ownerName, state: f.state,
       stateCode: stateCodeOf(f.state), city: f.city || undefined, gstin: f.gstin || undefined, email: f.email || undefined,
-      industry: f.industry, planCode: f.planCode, message: f.message || undefined,
+      industry: f.industry, message: f.message || undefined,
     }),
     onSuccess: () => setDone(true),
   })
@@ -59,18 +56,16 @@ export function SignupPage() {
             </div>
           ) : (
             <form className="stack" onSubmit={onSubmit} noValidate>
-              <div className="form-grid">
-                <Field label="Your mobile number" htmlFor="su-mobile" required hint="You will sign in with this number">
-                  <PhoneInput id="su-mobile" value={mobile} disabled={!!challenge} onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} />
+              <Field label="Your mobile number" htmlFor="su-mobile" required hint="You will sign in with this number">
+                <PhoneInput id="su-mobile" value={mobile} disabled={!!challenge} onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} />
+              </Field>
+              {!challenge ? (
+                <Button type="submit" loading={sendOtp.isPending} disabled={!/^[6-9]\d{9}$/.test(mobile)}>Send OTP</Button>
+              ) : (
+                <Field label="OTP" htmlFor="su-otp" required hint={challenge.demoOtp ? `Demo mode: your code is ${challenge.demoOtp}` : `Sent to ${challenge.maskedMobile}`}>
+                  <div style={{ display: 'flex' }}><OTPInput value={otp} onChange={setOtp} /></div>
                 </Field>
-                {!challenge ? (
-                  <div style={{ alignSelf: 'end' }}><Button type="submit" loading={sendOtp.isPending} disabled={!/^[6-9]\d{9}$/.test(mobile)}>Send OTP</Button></div>
-                ) : (
-                  <Field label="OTP" htmlFor="su-otp" required hint={challenge.demoOtp ? `Demo mode: your code is ${challenge.demoOtp}` : `Sent to ${challenge.maskedMobile}`}>
-                    <OTPInput value={otp} onChange={setOtp} />
-                  </Field>
-                )}
-              </div>
+              )}
               {challenge && (
                 <>
                   <div className="form-grid">
@@ -81,11 +76,6 @@ export function SignupPage() {
                     <Field label="City" htmlFor="su-city"><Input id="su-city" value={f.city} onChange={set('city')} /></Field>
                     <Field label="GSTIN" htmlFor="su-gstin" error={err?.fieldError('gstin')}><Input id="su-gstin" value={f.gstin} onChange={(e) => setF({ ...f, gstin: e.target.value.toUpperCase() })} maxLength={15} /></Field>
                     <Field label="Trade" htmlFor="su-ind" required><Select id="su-ind" value={f.industry} onChange={set('industry')} options={(industries.data ?? []).map((i) => ({ value: i.code, label: i.label }))} /></Field>
-                    <Field label="Plan" htmlFor="su-plan" className="span-2">
-                      <Select id="su-plan" value={f.planCode} onChange={set('planCode')} options={(plans.data ?? []).map((p) => ({
-                        value: p.code, label: `${p.name} — ${p.priceMonthly != null ? `${money(p.priceMonthly)}/month` : 'custom price'}${p.maxStaff ? ` · ${p.maxStaff} staff` : ''}${p.maxProducts ? ` · ${p.maxProducts} products` : ''}`,
-                      }))} />
-                    </Field>
                     <Field label="Anything we should know?" htmlFor="su-msg" className="span-2"><Textarea id="su-msg" value={f.message} onChange={set('message')} maxLength={1000} /></Field>
                   </div>
                   <Button type="submit" size="lg" icon={<CheckCircle2 size={18} />} loading={submit.isPending} disabled={!valid}>Send request</Button>

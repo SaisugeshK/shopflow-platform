@@ -15,8 +15,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * SaaS operations (architecture §0B.14, Phase 5): plan limits and upgrades, business self-signup approved by the
- * Super Admin, custom-domain lookup, and branches with stock per branch and transfers.
+ * SaaS operations (architecture §0B.14, Phase 5): business self-signup approved by the Super Admin, custom-domain
+ * lookup, and branches with stock per branch and transfers.
  */
 class SaasIntegrationTest extends IntegrationTest {
 
@@ -29,51 +29,13 @@ class SaasIntegrationTest extends IntegrationTest {
         platform = api.login(admin);
     }
 
-    private JsonNode newTenant(String plan) {
-        String owner = TestData.mobile();
-        JsonNode t = api.post("/api/v1/platform/tenants", platform, Map.of("name", "Plan Test " + owner.substring(9), "industry", "GROCERY",
-                "state", "Tamil Nadu", "stateCode", "33", "ownerName", "Owner", "ownerMobile", owner, "planCode", plan), 201).path("data");
-        assertThat(t.path("planCode").asString()).isEqualTo(plan);
-        return t;
-    }
-
-    @Test
-    void planLimitsBlockNewItemsUntilTheTenantIsUpgraded() {
-        JsonNode t = newTenant("FREE");
-        String id = t.path("id").asString();
-        String ownerMobile = t.path("ownerMobile").asString();
-        String owner = api.verify(ownerMobile, t.path("tenantCode").asString()).path("accessToken").asString();
-
-        // Free: 2 staff (the owner + one admin).
-        api.post("/api/v1/users", owner, Map.of("mobileNumber", TestData.mobile(), "fullName", "Admin One"), 201);
-        JsonNode blocked = api.post("/api/v1/users", owner, Map.of("mobileNumber", TestData.mobile(), "fullName", "Admin Two"), 403);
-        assertThat(blocked.path("error").path("code").asString()).isEqualTo("PLAN_LIMIT_REACHED");
-
-        // Free: 1 branch (the main one).
-        api.exchange(HttpMethod.PUT, "/api/v1/platform/tenants/" + id + "/modules", platform, Map.of("modules", Map.of("BRANCHES", true)), 200, Map.of());
-        assertThat(api.get("/api/v1/branches", owner, 200).path("data")).hasSize(1);
-        api.post("/api/v1/branches", owner, Map.of("code", "WH1", "name", "Godown"), 403);
-
-        JsonNode sub = api.get("/api/v1/subscription", owner, 200).path("data");
-        assertThat(sub.path("plan").path("code").asString()).isEqualTo("FREE");
-        assertThat(sub.path("usage").path("staff").asLong()).isEqualTo(2);
-
-        // Upgrade: both now work.
-        api.exchange(HttpMethod.PUT, "/api/v1/platform/tenants/" + id + "/plan", platform, Map.of("planCode", "STARTER"), 200, Map.of());
-        api.post("/api/v1/users", owner, Map.of("mobileNumber", TestData.mobile(), "fullName", "Admin Two"), 201);
-        api.post("/api/v1/branches", owner, Map.of("code", "WH1", "name", "Godown", "kind", "WAREHOUSE"), 201);
-        assertThat(api.get("/api/v1/subscription", owner, 200).path("data").path("usage").path("branches").asLong()).isEqualTo(2);
-        api.exchange(HttpMethod.PUT, "/api/v1/platform/tenants/" + id + "/plan", platform, Map.of("planCode", "NOPE"), 400, Map.of());
-        api.get("/api/v1/platform/plans", owner, 403);
-    }
-
     @Test
     void selfSignupIsApprovedIntoANewBusiness() {
         String mobile = TestData.mobile();
         JsonNode otp = api.post("/api/v1/public/signup/otp", null, Map.of("mobileNumber", mobile), 200).path("data");
         Map<String, Object> request = new java.util.HashMap<>(Map.of("requestId", otp.path("requestId").asString(), "otp", api.latestOtp(mobile),
                 "mobileNumber", mobile, "businessName", "Sri Murugan Traders", "ownerName", "Murugan", "state", "Tamil Nadu",
-                "stateCode", "33", "industry", "CONSTRUCTION", "planCode", "STARTER"));
+                "stateCode", "33", "industry", "CONSTRUCTION"));
         String id = api.post("/api/v1/public/signup", null, request, 201).path("data").path("id").asString();
         assertThat(api.get("/api/v1/public/signup/status?mobileNumber=" + mobile.substring(3), null, 200).path("data").path("status").asString()).isEqualTo("PENDING");
 
@@ -82,11 +44,10 @@ class SaasIntegrationTest extends IntegrationTest {
         assertThat(otp2.path("error").path("code").asString()).isIn("AUTH_OTP_COOLDOWN", "RATE_LIMITED");
 
         assertThat(api.get("/api/v1/platform/signups?status=PENDING", platform, 200).path("data").findValuesAsString("id")).contains(id);
-        JsonNode approved = api.post("/api/v1/platform/signups/" + id + "/approve", platform, Map.of("planCode", "GROWTH"), 200).path("data");
+        JsonNode approved = api.post("/api/v1/platform/signups/" + id + "/approve", platform, Map.of(), 200).path("data");
         assertThat(approved.path("status").asString()).isEqualTo("APPROVED");
         String code = approved.path("tenantCode").asString();
         JsonNode tenant = api.get("/api/v1/platform/tenants/" + approved.path("businessId").asString(), platform, 200).path("data");
-        assertThat(tenant.path("planCode").asString()).isEqualTo("GROWTH");
         assertThat(tenant.path("industry").asString()).isEqualTo("CONSTRUCTION");
         api.post("/api/v1/platform/signups/" + id + "/approve", platform, Map.of(), 409);
 

@@ -73,15 +73,12 @@ public class CustomerService {
     private final AuditService audit;
     private final NamedParameterJdbcTemplate jdbc;
 
-    private final com.shopflow.saas.PlanLimits limits;
-
     public CustomerService(CustomerRepository customers, CustomerAddressRepository addresses,
                            CustomerCreditProfileRepository creditProfiles, CustomerLedgerRepository ledgerRepository,
                            CreditService creditService, UserRepository users, RoleRepository roles,
                            DocumentSequenceService sequences, BusinessContext businessContext,
                            BusinessSettingsService settings, SessionService sessions,
-                           NotificationService notifications, AuditService audit, NamedParameterJdbcTemplate jdbc, com.shopflow.saas.PlanLimits limits) {
-        this.limits = limits;
+                           NotificationService notifications, AuditService audit, NamedParameterJdbcTemplate jdbc) {
         this.customers = customers;
         this.addresses = addresses;
         this.creditProfiles = creditProfiles;
@@ -103,7 +100,6 @@ public class CustomerService {
     /** Self-registration after OTP verification. The account starts PENDING_APPROVAL (§4.2). */
     @Transactional
     public Customer register(String verifiedMobile, RegistrationRequest r) {
-        limits.check(com.shopflow.saas.PlanLimits.Limit.CUSTOMERS);
         if (users.existsByMobileNumber(verifiedMobile)) {
             throw new BusinessException(ErrorCode.CUSTOMER_ALREADY_REGISTERED, "This mobile number is already registered. Please sign in.");
         }
@@ -123,7 +119,6 @@ public class CustomerService {
     /** Staff-created customers are approved immediately and get a login for the mobile number. */
     @Transactional
     public Customer create(CreateCustomerRequest r) {
-        limits.check(com.shopflow.saas.PlanLimits.Limit.CUSTOMERS);
         String mobile = MobileNumbers.normalize(r.mobileNumber());
         if (users.existsByMobileNumber(mobile)
                 || customers.findByBusinessIdAndMobileNumber(businessContext.businessId(), mobile).isPresent()) {

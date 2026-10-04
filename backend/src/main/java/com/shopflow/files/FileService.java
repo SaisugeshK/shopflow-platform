@@ -34,10 +34,7 @@ public class FileService {
     private final StoredFileRepository repository;
     private final StorageProvider storage;
 
-    private final com.shopflow.saas.PlanLimits limits;
-
-    public FileService(StoredFileRepository repository, StorageProvider storage, com.shopflow.saas.PlanLimits limits) {
-        this.limits = limits;
+    public FileService(StoredFileRepository repository, StorageProvider storage) {
         this.repository = repository;
         this.storage = storage;
     }
@@ -48,7 +45,6 @@ public class FileService {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "File is empty");
         }
-        limits.checkStorage(file.getSize());
         if (file.getSize() > MAX_IMAGE_BYTES) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "Image must be 5 MB or smaller");
         }
@@ -76,7 +72,6 @@ public class FileService {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "File is empty");
         }
-        limits.checkStorage(file.getSize());
         if (file.getSize() > 2 * MAX_IMAGE_BYTES) {
             throw new BusinessException(ErrorCode.FILE_INVALID, "The file must be 10 MB or smaller");
         }

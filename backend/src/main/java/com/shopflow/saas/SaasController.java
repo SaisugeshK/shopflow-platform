@@ -5,21 +5,17 @@ import com.shopflow.common.web.RequestContext;
 import com.shopflow.platform.PlatformDtos.TenantDetail;
 import com.shopflow.platform.PlatformService;
 import com.shopflow.saas.SaasDtos.ApproveSignupRequest;
-import com.shopflow.saas.SaasDtos.ChangePlanRequest;
 import com.shopflow.saas.SaasDtos.DomainRequest;
-import com.shopflow.saas.SaasDtos.PlanResponse;
 import com.shopflow.saas.SaasDtos.RejectSignupRequest;
 import com.shopflow.saas.SaasDtos.SignupOtpRequest;
 import com.shopflow.saas.SaasDtos.SignupOtpResponse;
 import com.shopflow.saas.SaasDtos.SignupRequest;
 import com.shopflow.saas.SaasDtos.SignupResponse;
-import com.shopflow.saas.SaasDtos.SubscriptionResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,31 +31,23 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * SaaS operations (§0B.14): public plan list and business self-signup; the tenant's own plan and usage; and the Super
- * Admin's plan changes, custom domains and sign-up approvals (under /platform, SUPER_ADMIN only).
+ * Business self-signup (§0B.14) and the Super Admin's custom domains and sign-up approvals (under /platform,
+ * SUPER_ADMIN only).
  */
 @RestController
 @RequestMapping("/api/v1")
-@Tag(name = "Plans & sign-up", description = "Plans, usage limits, business self-signup and custom domains")
+@Tag(name = "Sign-up", description = "Business self-signup and custom domains")
 public class SaasController {
 
-    private final PlanLimits limits;
     private final SignupService signups;
     private final PlatformService platform;
 
-    public SaasController(PlanLimits limits, SignupService signups, PlatformService platform) {
-        this.limits = limits;
+    public SaasController(SignupService signups, PlatformService platform) {
         this.signups = signups;
         this.platform = platform;
     }
 
     // ------------------------------------------------------------------ public
-
-    @GetMapping("/public/plans")
-    @Operation(summary = "Plans on offer")
-    public ApiResponse<List<PlanResponse>> publicPlans() {
-        return ApiResponse.ok(limits.plans().stream().filter(PlanResponse::active).toList());
-    }
 
     @GetMapping("/public/industries")
     @Operation(summary = "Industries a business can sign up for")
@@ -87,31 +75,7 @@ public class SaasController {
         return ApiResponse.ok(Map.of("status", signups.statusFor(mobileNumber)));
     }
 
-    // ------------------------------------------------------------------ tenant
-
-    @GetMapping("/subscription")
-    @SecurityRequirement(name = "bearerAuth")
-    @PreAuthorize("hasAuthority('SETTINGS_MANAGE')")
-    @Operation(summary = "This business's plan and usage")
-    public ApiResponse<SubscriptionResponse> subscription() {
-        return ApiResponse.ok(limits.subscription());
-    }
-
     // ------------------------------------------------------------------ platform
-
-    @GetMapping("/platform/plans")
-    @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "All plans")
-    public ApiResponse<List<PlanResponse>> plans() {
-        return ApiResponse.ok(limits.plans());
-    }
-
-    @PutMapping("/platform/tenants/{id}/plan")
-    @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Change a business's plan")
-    public ApiResponse<TenantDetail> changePlan(@PathVariable UUID id, @Valid @RequestBody ChangePlanRequest request) {
-        return ApiResponse.ok(platform.changePlan(id, request.planCode()));
-    }
 
     @PutMapping("/platform/tenants/{id}/domain")
     @SecurityRequirement(name = "bearerAuth")

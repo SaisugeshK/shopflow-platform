@@ -4,7 +4,7 @@ import { View } from 'react-native'
 import { ProductPickerButton } from '@/components/admin/Pickers'
 import { RequirePermission } from '@/components/admin/RequirePermission'
 import { Button, IconButton } from '@/components/ui/Button'
-import { Card, KeyValue, ListRow, StatusBadge } from '@/components/ui/Data'
+import { Card, ListRow, StatusBadge } from '@/components/ui/Data'
 import { Alert, EmptyState, QueryState } from '@/components/ui/Feedback'
 import { ChipGroup, Field, QtyInput, Select } from '@/components/ui/Form'
 import { Sheet } from '@/components/ui/Overlay'
@@ -12,10 +12,10 @@ import { Screen } from '@/components/ui/Screen'
 import { Text } from '@/components/ui/Text'
 import { toast } from '@/components/ui/Toast'
 import { api, ApiError } from '@/services/api'
-import type { Branch, BranchStockRow, Product, StockTransfer, Subscription } from '@/services/types'
+import type { Branch, BranchStockRow, Product, StockTransfer } from '@/services/types'
 import { useCan, useModule } from '@/store/auth'
 import { useBranchStore } from '@/store/branch'
-import { date, money, quantity, titleCase } from '@/utils/format'
+import { date, quantity, titleCase } from '@/utils/format'
 
 export function useBranches(enabled = true) {
   return useQuery({ queryKey: ['branches'], enabled, queryFn: () => api.get<Branch[]>('/api/v1/branches'), staleTime: 60_000 })
@@ -123,26 +123,5 @@ function TransferSheet({ branches, onClose, onDone }: { branches: Branch[]; onCl
       ))}
       {err && <Alert tone="danger">{err.message}</Alert>}
     </Sheet>
-  )
-}
-
-/** The business's ShopFlow plan and usage (Settings). */
-export function PlanUsageSection() {
-  const q = useQuery({ queryKey: ['subscription'], queryFn: () => api.get<Subscription>('/api/v1/subscription') })
-  const row = (used: number, max?: number) => `${used}${max != null ? ` of ${max}` : ' · no limit'}`
-  return (
-    <QueryState query={q}>
-      {(s) => (
-        <Card title={`${s.plan.name} plan`}>
-          <KeyValue items={[
-            ['Price', s.plan.priceMonthly != null ? `${money(s.plan.priceMonthly)} / month` : 'Custom'],
-            ['Staff users', row(s.usage.staff, s.plan.maxStaff)], ['Products', row(s.usage.products, s.plan.maxProducts)],
-            ['Customers', row(s.usage.customers, s.plan.maxCustomers)], ['Invoices this month', row(s.usage.invoicesThisMonth, s.plan.maxInvoicesPerMonth)],
-            ['Branches', row(s.usage.branches, s.plan.maxBranches)], ['Files (MB)', row(s.usage.storageMb, s.plan.maxStorageMb)],
-          ]} />
-          <Text variant="xs" color="muted" style={{ marginTop: 8 }}>To change your plan, contact ShopFlow support.</Text>
-        </Card>
-      )}
-    </QueryState>
   )
 }

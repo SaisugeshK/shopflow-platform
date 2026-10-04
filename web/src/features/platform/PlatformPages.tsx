@@ -15,7 +15,7 @@ import type { Me } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { date, dateTime, titleCase } from '@/utils/format'
 import { GST_STATES, stateCodeOf } from '@/utils/india'
-import { TenantPlanCard, usePlans } from './PlatformSaasPages'
+import { TenantDomainCard } from './PlatformSaasPages'
 
 // ---------------------------------------------------------------- types (Super Admin console API, §0B.5)
 
@@ -36,7 +36,6 @@ interface TenantSummary {
   invoices: number
   lastActivityAt?: string
   createdAt: string
-  planCode: string
 }
 
 interface ModuleState {
@@ -80,8 +79,6 @@ interface TenantDetail {
   modules: ModuleState[]
   owners: { userId: string; fullName: string; mobileNumber: string; email?: string; status: string; lastLoginAt?: string }[]
   joinPath: string
-  planCode: string
-  planName: string
   customDomain?: string
 }
 
@@ -171,7 +168,6 @@ export function PlatformOverviewPage() {
                   columns={[
                     { key: 'n', header: 'Business', render: (t) => <strong>{t.name}</strong> },
                     { key: 'i', header: 'Industry', render: (t) => t.industryLabel },
-              { key: 'pl', header: 'Plan', priority: 'low', render: (t) => titleCase(t.planCode) },
                     { key: 'c', header: 'Registered', render: (t) => date(t.createdAt) },
                   ]} />
               </Card>
@@ -240,14 +236,13 @@ export function CreateTenantPage() {
   const toast = useToast()
   const qc = useQueryClient()
   const industries = useIndustries()
-  const plans = usePlans()
-  const [f, setF] = useState({ name: '', legalName: '', tenantCode: '', industry: 'GROCERY', state: 'Tamil Nadu', city: '', gstin: '', ownerName: '', ownerMobile: '', email: '', planCode: 'STARTER' })
+  const [f, setF] = useState({ name: '', legalName: '', tenantCode: '', industry: 'GROCERY', state: 'Tamil Nadu', city: '', gstin: '', ownerName: '', ownerMobile: '', email: '' })
   const template = industries.data?.find((i) => i.code === f.industry)
   const create = useMutation({
     mutationFn: () => api.post<TenantDetail>('/api/v1/platform/tenants', {
       name: f.name, legalName: f.legalName || undefined, tenantCode: f.tenantCode || undefined, industry: f.industry, state: f.state,
       stateCode: stateCodeOf(f.state), city: f.city || undefined, gstin: f.gstin || undefined, ownerName: f.ownerName,
-      ownerMobile: f.ownerMobile, email: f.email || undefined, planCode: f.planCode,
+      ownerMobile: f.ownerMobile, email: f.email || undefined,
     }),
     onSuccess: (t) => {
       qc.invalidateQueries({ queryKey: ['platform'] })
@@ -290,9 +285,6 @@ export function CreateTenantPage() {
               </Field>
               <Field label="Email" htmlFor="t-email">
                 <Input id="t-email" type="email" value={f.email} onChange={set('email')} maxLength={200} />
-              </Field>
-              <Field label="Plan" htmlFor="t-plan">
-                <Select id="t-plan" value={f.planCode} onChange={set('planCode')} options={(plans.data ?? []).map((p) => ({ value: p.code, label: p.name }))} />
               </Field>
             </div>
           </Card>
@@ -434,7 +426,7 @@ export function TenantDetailPage() {
                   ['Last activity', t.usage.lastActivityAt ? dateTime(t.usage.lastActivityAt) : '—'],
                 ]} />
               </Card>
-              <TenantPlanCard tenant={t} onChanged={refresh} />
+              <TenantDomainCard tenant={t} onChanged={refresh} />
               <Card title="Owner logins" padded={false}>
                 <DataTable rows={t.owners} rowKey={(o) => o.userId} columns={[
                   { key: 'n', header: 'Name', render: (o) => <div><strong>{o.fullName}</strong><div className="xs muted">{o.mobileNumber}</div></div> },

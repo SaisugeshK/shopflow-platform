@@ -99,7 +99,7 @@ public class PlatformService {
 
     private static final String SUMMARY_SQL = """
             SELECT b.id, b.tenant_code, b.name, b.industry, b.status, b.owner_name, b.owner_mobile, b.city, b.state,
-                   b.created_at, b.logo_file_id, b.plan_code,
+                   b.created_at, b.logo_file_id,
                    (SELECT count(*) FROM users u WHERE u.business_id = b.id) AS users,
                    (SELECT count(*) FROM customers c WHERE c.business_id = b.id) AS customers,
                    (SELECT count(*) FROM products p WHERE p.business_id = b.id) AS products,
@@ -163,15 +163,13 @@ public class PlatformService {
                     rs.getString("mobile_number"), rs.getString("email"), rs.getString("status"), instant(rs, "last_login_at")));
             String industryCode = (String) b.get("industry");
             String code = (String) b.get("tenant_code");
-            String planCode = (String) b.get("plan_code");
-            String planName = jdbc.queryForObject("SELECT name FROM plans WHERE code = :c", Map.of("c", planCode), String.class);
             return new TenantDetail(id, code, (String) b.get("name"), (String) b.get("legal_name"), industryCode,
                     industryLabel(industryCode), (String) b.get("status"), (String) b.get("status_reason"),
                     (String) b.get("owner_name"), (String) b.get("owner_mobile"), (String) b.get("gstin"),
                     (String) b.get("address_line1"), (String) b.get("city"), (String) b.get("state"),
                     (String) b.get("state_code"), (String) b.get("pincode"), (String) b.get("email"),
                     (String) b.get("phone"), BusinessContext.logoUrl((UUID) b.get("logo_file_id")),
-                    ((Timestamp) b.get("created_at")).toInstant(), usage, moduleStates(id), owners, "/join/" + code, planCode, planName,
+                    ((Timestamp) b.get("created_at")).toInstant(), usage, moduleStates(id), owners, "/join/" + code,
                     (String) b.get("custom_domain"));
         });
     }
@@ -179,7 +177,6 @@ public class PlatformService {
     public TenantDetail createTenant(CreateTenantRequest r) {
         IndustryTemplate template = industry(r.industry());
         String ownerMobile = MobileNumbers.normalize(r.ownerMobile());
-        String planCode = r.planCode() == null || r.planCode().isBlank() ? "STARTER" : requirePlan(r.planCode());
         UUID id = UUID.randomUUID();
         UUID actor = CurrentUser.id();
         TenantContext.callAsPlatformIn(id, () -> tx.execute(status -> {
@@ -193,13 +190,13 @@ public class PlatformService {
                     .addValue("state", r.state().trim()).addValue("stateCode", r.stateCode()).addValue("city", blankToNull(r.city()))
                     .addValue("gstin", blankToNull(r.gstin())).addValue("email", blankToNull(r.email()))
                     .addValue("code", code).addValue("industry", template.name()).addValue("ownerName", r.ownerName().trim())
-                    .addValue("ownerMobile", ownerMobile).addValue("by", actor).addValue("now", now).addValue("plan", planCode);
+                    .addValue("ownerMobile", ownerMobile).addValue("by", actor).addValue("now", now);
             jdbc.update("""
                     INSERT INTO businesses (id, name, legal_name, state, state_code, city, gstin, email, mobile, timezone, currency,
                         financial_year_start_month, tenant_code, status, industry, owner_name, owner_mobile, created_by,
-                        authorized_signatory, plan_code, plan_changed_at, created_at, updated_at)
+                        authorized_signatory, created_at, updated_at)
                     VALUES (:id, :name, :legal, :state, :stateCode, :city, :gstin, :email, :ownerMobile, 'Asia/Kolkata', 'INR', 4,
-                        :code, 'ACTIVE', :industry, :ownerName, :ownerMobile, :by, 'For ' || :name, :plan, :now, :now, :now)
+                        :code, 'ACTIVE', :industry, :ownerName, :ownerMobile, :by, 'For ' || :name, :now, :now)
                     """, b);
             jdbc.update("INSERT INTO business_settings (business_id, updated_at) VALUES (:id, :now)", b);
             jdbc.update("""
@@ -255,19 +252,6 @@ public class PlatformService {
         return tenant(id);
     }
 
-    /** Moves a tenant to another plan (§0B.14). Existing data above the new limits stays; only new items are blocked. */
-    public TenantDetail changePlan(UUID id, String planCode) {
-        TenantDetail before = tenant(id);
-        String plan = requirePlan(planCode);
-        TenantContext.callAsPlatformIn(id, () -> tx.execute(status -> {
-            jdbc.update("UPDATE businesses SET plan_code = :plan, plan_changed_at = :now, updated_at = :now, version = version + 1 WHERE id = :id",
-                    new MapSqlParameterSource("id", id).addValue("plan", plan).addValue("now", Timestamp.from(Instant.now())));
-            audit.record(AuditAction.TENANT_PLAN_CHANGED, "BUSINESS", id, Map.of("plan", before.planCode()), Map.of("plan", plan));
-            return null;
-        }));
-        return tenant(id);
-    }
-
     /** Custom domain (or subdomain) that opens ShopFlow already pointed at this tenant; DNS/TLS are set up at deploy. */
     public TenantDetail setDomain(UUID id, String domain) {
         TenantDetail before = tenant(id);
@@ -286,14 +270,6 @@ public class PlatformService {
             return null;
         }));
         return tenant(id);
-    }
-
-    private String requirePlan(String code) {
-        String plan = code.trim().toUpperCase(Locale.ROOT);
-        if (!exists("SELECT count(*) FROM plans WHERE code = :c AND active", Map.of("c", plan))) {
-            throw BusinessException.validation("planCode", "Unknown plan " + plan);
-        }
-        return plan;
     }
 
     public TenantDetail suspend(UUID id, String reason) {
@@ -554,7 +530,7 @@ public class PlatformService {
                 industryCode, industryLabel(industryCode), rs.getString("status"), rs.getString("owner_name"),
                 rs.getString("owner_mobile"), rs.getString("city"), rs.getString("state"), rs.getLong("users"),
                 rs.getLong("customers"), rs.getLong("products"), rs.getLong("invoices"), instant(rs, "last_activity"),
-                instant(rs, "created_at"), BusinessContext.logoUrl(rs.getObject("logo_file_id", UUID.class)), rs.getString("plan_code"));
+                instant(rs, "created_at"), BusinessContext.logoUrl(rs.getObject("logo_file_id", UUID.class)));
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {

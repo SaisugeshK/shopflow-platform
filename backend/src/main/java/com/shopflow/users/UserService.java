@@ -43,11 +43,8 @@ public class UserService {
     private final AuditService audit;
     private final BusinessContext businessContext;
 
-    private final com.shopflow.saas.PlanLimits limits;
-
     public UserService(UserRepository users, RoleRepository roles, PermissionRepository permissions, JdbcTemplate jdbc,
-                       SessionService sessionService, AuditService audit, BusinessContext businessContext, com.shopflow.saas.PlanLimits limits) {
-        this.limits = limits;
+                       SessionService sessionService, AuditService audit, BusinessContext businessContext) {
         this.users = users;
         this.roles = roles;
         this.permissions = permissions;
@@ -104,7 +101,6 @@ public class UserService {
     /** Owners create Admin users. Owner accounts are provisioned out-of-band, never through the API. */
     @Transactional
     public User createAdmin(CreateStaffUserRequest request) {
-        limits.check(com.shopflow.saas.PlanLimits.Limit.STAFF);
         String mobile = MobileNumbers.normalize(request.mobileNumber());
         if (users.existsByMobileNumber(mobile)) {
             throw new BusinessException(ErrorCode.CONFLICT, "A user with this mobile number already exists");

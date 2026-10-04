@@ -22,7 +22,7 @@ public final class PlatformDtos {
     public record TenantSummary(UUID id, String tenantCode, String name, String industry, String industryLabel,
                                 String status, String ownerName, String ownerMobile, String city, String state,
                                 long users, long customers, long products, long invoices, Instant lastActivityAt,
-                                Instant createdAt, String logoUrl, String planCode) {
+                                Instant createdAt, String logoUrl) {
     }
 
     public record TenantUsage(long users, long staff, long customers, long suppliers, long products, long orders,
@@ -41,8 +41,7 @@ public final class PlatformDtos {
                                String ownerMobile, String gstin, String addressLine1, String city, String state,
                                String stateCode, String pincode, String email, String phone, String logoUrl,
                                Instant createdAt, TenantUsage usage, List<ModuleState> modules,
-                               List<OwnerContact> owners, String joinPath, String planCode, String planName,
-                               String customDomain) {
+                               List<OwnerContact> owners, String joinPath, String customDomain) {
     }
 
     public record CreateTenantRequest(
@@ -58,9 +57,7 @@ public final class PlatformDtos {
             @NotBlank @Size(max = 200) String ownerName,
             @NotBlank @Size(max = 20) String ownerMobile,
             @Size(max = 200) String email,
-            Map<String, Boolean> modules,
-            /* Plan (§0B.14); defaults to STARTER. */
-            @Size(max = 30) String planCode) {
+            Map<String, Boolean> modules) {
     }
 
     public record UpdateTenantRequest(@Size(max = 200) String name, @Size(max = 200) String legalName, String industry,

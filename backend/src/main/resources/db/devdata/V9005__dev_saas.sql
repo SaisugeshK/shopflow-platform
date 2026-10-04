@@ -1,5 +1,5 @@
--- DEVELOPMENT ONLY: SaaS operations (§0B.14) for the demo: branches on for tenant "main" with a warehouse, the demo
--- tenants on real plans, and one sign-up request waiting for the Super Admin (+919000000009).
+-- DEVELOPMENT ONLY: SaaS operations (§0B.14) for the demo: branches on for tenant "main" with a warehouse, and one
+-- sign-up request waiting for the Super Admin (+919000000009).
 SELECT set_config('app.platform_access', 'on', false);
 
 INSERT INTO tenant_modules (business_id, module_code, enabled, updated_at) VALUES
@@ -11,8 +11,6 @@ INSERT INTO branches (id, business_id, code, name, kind, city, state, state_code
  ('00000000-0000-0000-000a-000000000002', '00000000-0000-0000-0000-000000000001', 'GODOWN', 'Central Godown', 'WAREHOUSE', 'Chennai', 'Tamil Nadu', '33', FALSE, TRUE, now(), now())
 ON CONFLICT DO NOTHING;
 
-UPDATE businesses SET plan_code = 'GROWTH', plan_changed_at = now() WHERE tenant_code <> 'main';
-
-INSERT INTO tenant_signups (id, business_name, owner_name, owner_mobile, state, state_code, city, industry, plan_code, message, status, created_at) VALUES
+INSERT INTO tenant_signups (id, business_name, owner_name, owner_mobile, state, state_code, city, industry, message, status, created_at) VALUES
  ('00000000-0000-0000-000b-000000000001', 'Lakshmi Paints & Hardware', 'Lakshmi N', '+919000000012', 'Tamil Nadu', '33', 'Madurai',
-  'PAINTS', 'STARTER', 'Two shops in Madurai; want to start with one.', 'PENDING', now());
+  'PAINTS', 'Two shops in Madurai; want to start with one.', 'PENDING', now());

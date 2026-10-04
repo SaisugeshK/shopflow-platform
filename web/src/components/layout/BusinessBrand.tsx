@@ -34,6 +34,13 @@ export function BusinessBrand({ nameClassName, size = 34 }: { nameClassName?: st
 }
 
 /** Small product credit shown under the tenant's own branding. */
+/** The company behind ShopFlow, linked from every "Powered by" footer. */
+export const COMPANY_URL = 'https://techsparksoftwaresolutions.com'
+
 export function PoweredBy({ className }: { className?: string }) {
-  return <span className={className ?? 'powered-by'}>Powered by <strong>ShopFlow</strong></span>
+  return (
+    <span className={className ?? 'powered-by'}>
+      Powered by <strong>ShopFlow</strong> · <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer">TechSpark Software Solutions</a>
+    </span>
+  )
 }

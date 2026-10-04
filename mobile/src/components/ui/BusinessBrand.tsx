@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Image, StyleSheet, View } from 'react-native'
+import { Image, Linking, StyleSheet, View } from 'react-native'
 import { API_BASE } from '@/services/api'
 import { useAuthStore } from '@/store/auth'
 import { colors, radius } from '@/theme/tokens'
@@ -31,10 +31,14 @@ export function BusinessBrand({ size = 30 }: { size?: number }) {
 }
 
 /** Small product credit under the tenant's own branding. */
+/** The company behind ShopFlow, linked from every "Powered by" footer. */
+const COMPANY_URL = 'https://techsparksoftwaresolutions.com'
+
 export function PoweredBy() {
   return (
     <Text variant="xs" color="muted" align="center">
-      Powered by <Text variant="xs" weight="700">ShopFlow</Text>
+      Powered by <Text variant="xs" weight="700">ShopFlow</Text> ·{' '}
+      <Text variant="xs" weight="700" color="primary" accessibilityRole="link" onPress={() => Linking.openURL(COMPANY_URL)}>TechSpark Software Solutions</Text>
     </Text>
   )
 }

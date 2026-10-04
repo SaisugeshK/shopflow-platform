@@ -143,7 +143,6 @@ export const router = createBrowserRouter([{
       { path: 'tenants/:id', element: page(platform, 'TenantDetailPage') },
       { path: 'industries', element: page(platform, 'IndustriesPage') },
       { path: 'signups', element: page(platformSaas, 'SignupsPage') },
-      { path: 'plans', element: page(platformSaas, 'PlansPage') },
       { path: 'admins', element: page(platform, 'PlatformAdminsPage') },
       { path: 'audit', element: page(platform, 'PlatformAuditPage') },
       { path: '*', element: <NotFound /> },

@@ -63,13 +63,10 @@ public class ProductService {
     private final AuditService audit;
     private final ProductOptionsService options;
 
-    private final com.shopflow.saas.PlanLimits limits;
-
     public ProductService(ProductRepository products, CategoryRepository categories, BrandRepository brands,
                           ProductImageRepository images, StockBalanceRepository stockBalances, InventoryService inventory,
                           PricingService pricing, FileService files, BusinessContext businessContext,
-                          BusinessSettingsService settings, AuditService audit, ProductOptionsService options, com.shopflow.saas.PlanLimits limits) {
-        this.limits = limits;
+                          BusinessSettingsService settings, AuditService audit, ProductOptionsService options) {
         this.options = options;
         this.products = products;
         this.categories = categories;
@@ -94,7 +91,6 @@ public class ProductService {
 
     @Transactional
     public Product create(CreateProductRequest r) {
-        limits.check(com.shopflow.saas.PlanLimits.Limit.PRODUCTS);
         Category category = activeCategory(r.categoryId());
         validateGstRate(r.gstRate());
         String sku = r.sku() == null || r.sku().isBlank() ? generateSku(category) : r.sku().trim().toUpperCase();

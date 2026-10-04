@@ -1,5 +1,5 @@
 import {
-  BarChart3, Building2, CreditCard, Factory, Inbox, LayoutDashboard, LayoutGrid, Package, Receipt, ScrollText, Settings, ShieldCheck,
+  BarChart3, Building2, Factory, Inbox, LayoutDashboard, LayoutGrid, Package, Receipt, ScrollText, Settings, ShieldCheck,
   ShoppingCart, Truck, Users, UserPlus,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -81,7 +81,6 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Overview', to: '/platform', icon: LayoutDashboard },
   { label: 'Businesses', to: '/platform/tenants', icon: Building2 },
   { label: 'Sign-up requests', to: '/platform/signups', icon: Inbox },
-  { label: 'Plans', to: '/platform/plans', icon: CreditCard },
   { label: 'Register business', to: '/platform/tenants/new', icon: Factory },
   { label: 'Industry templates', to: '/platform/industries', icon: LayoutGrid },
   { label: 'Platform admins', to: '/platform/admins', icon: ShieldCheck },

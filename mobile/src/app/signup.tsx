@@ -9,8 +9,6 @@ import { Field, Input, OTPInput, PhoneInput, Select } from '@/components/ui/Form
 import { Screen } from '@/components/ui/Screen'
 import { Text } from '@/components/ui/Text'
 import { api, ApiError } from '@/services/api'
-import type { Plan } from '@/services/types'
-import { money } from '@/utils/format'
 import { GST_STATES, stateCodeOf } from '@/utils/india'
 
 interface Challenge { requestId: string; maskedMobile: string; demoOtp?: string }
@@ -20,15 +18,14 @@ export default function SignupScreen() {
   const [mobile, setMobile] = useState('')
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [otp, setOtp] = useState('')
-  const [f, setF] = useState({ businessName: '', ownerName: '', state: 'Tamil Nadu', city: '', industry: 'GROCERY', planCode: 'FREE' })
+  const [f, setF] = useState({ businessName: '', ownerName: '', state: 'Tamil Nadu', city: '', industry: 'GROCERY' })
   const [done, setDone] = useState(false)
-  const plans = useQuery({ queryKey: ['public-plans'], queryFn: () => api.get<Plan[]>('/api/v1/public/plans') })
   const industries = useQuery({ queryKey: ['public-industries'], queryFn: () => api.get<{ code: string; label: string }[]>('/api/v1/public/industries') })
   const sendOtp = useMutation({ mutationFn: () => api.post<Challenge>('/api/v1/public/signup/otp', { mobileNumber: mobile }), onSuccess: setChallenge })
   const submit = useMutation({
     mutationFn: () => api.post('/api/v1/public/signup', {
       requestId: challenge!.requestId, otp, mobileNumber: mobile, businessName: f.businessName, ownerName: f.ownerName, state: f.state,
-      stateCode: stateCodeOf(f.state), city: f.city || undefined, industry: f.industry, planCode: f.planCode,
+      stateCode: stateCodeOf(f.state), city: f.city || undefined, industry: f.industry,
     }),
     onSuccess: () => setDone(true),
   })
@@ -57,8 +54,6 @@ export default function SignupScreen() {
                 <Field label="State"><Select label="State" value={f.state} onChange={(v) => setF({ ...f, state: v })} searchable options={GST_STATES.map((s) => ({ value: s.name, label: s.name }))} /></Field>
                 <Field label="City"><Input value={f.city} onChangeText={(t) => setF({ ...f, city: t })} accessibilityLabel="City" /></Field>
                 <Field label="Trade"><Select label="Trade" value={f.industry} onChange={(v) => setF({ ...f, industry: v })} options={(industries.data ?? []).map((i) => ({ value: i.code, label: i.label }))} /></Field>
-                <Field label="Plan"><Select label="Plan" value={f.planCode} onChange={(v) => setF({ ...f, planCode: v })}
-                  options={(plans.data ?? []).map((p) => ({ value: p.code, label: `${p.name} · ${p.priceMonthly != null ? `${money(p.priceMonthly)}/month` : 'custom'}` }))} /></Field>
               </>
             )}
           </View>

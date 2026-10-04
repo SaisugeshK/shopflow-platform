@@ -61,20 +61,15 @@ public class SignupService {
         } catch (IllegalArgumentException e) {
             throw BusinessException.validation("industry", "Choose an industry");
         }
-        String plan = r.planCode() == null || r.planCode().isBlank() ? "FREE" : r.planCode().trim().toUpperCase(Locale.ROOT);
         UUID id = UUID.randomUUID();
         TenantContext.callAsPlatform(() -> {
-            Long known = jdbc.queryForObject("SELECT count(*) FROM plans WHERE code = ? AND active", Long.class, plan);
-            if (known == null || known == 0) {
-                throw BusinessException.validation("planCode", "Unknown plan");
-            }
             try {
                 jdbc.update("""
                         INSERT INTO tenant_signups (id, business_name, legal_name, owner_name, owner_mobile, email, state, state_code, city,
-                                                    gstin, industry, plan_code, message, status, client_ip, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+                                                    gstin, industry, message, status, client_ip, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
                         """, id, r.businessName().trim(), blank(r.legalName()), r.ownerName().trim(), mobile, blank(r.email()),
-                        r.state().trim(), r.stateCode(), blank(r.city()), blank(r.gstin()), industry.name(), plan, blank(r.message()),
+                        r.state().trim(), r.stateCode(), blank(r.city()), blank(r.gstin()), industry.name(), blank(r.message()),
                         clientIp, Timestamp.from(Instant.now()));
             } catch (DuplicateKeyException e) {
                 throw new BusinessException(ErrorCode.CONFLICT, "A sign-up for this mobile number is already waiting for approval");
@@ -102,7 +97,7 @@ public class SignupService {
         SignupResponse s = pending(id);
         TenantDetail tenant = platform.createTenant(new CreateTenantRequest(s.businessName(), s.legalName(),
                 r == null ? null : r.tenantCode(), s.industry(), s.state(), s.stateCode(), s.city(), s.gstin(), s.ownerName(),
-                s.ownerMobile(), s.email(), null, r == null || r.planCode() == null || r.planCode().isBlank() ? s.planCode() : r.planCode()));
+                s.ownerMobile(), s.email(), null));
         TenantContext.callAsPlatform(() -> {
             jdbc.update("UPDATE tenant_signups SET status = 'APPROVED', business_id = ?, decided_by = ?, decided_at = ? WHERE id = ?",
                     tenant.id(), CurrentUser.id(), Timestamp.from(Instant.now()), id);
@@ -149,7 +144,7 @@ public class SignupService {
         return new SignupResponse(rs.getObject("id", UUID.class), rs.getString("business_name"), rs.getString("legal_name"),
                 rs.getString("owner_name"), rs.getString("owner_mobile"), rs.getString("email"), rs.getString("state"),
                 rs.getString("state_code"), rs.getString("city"), rs.getString("gstin"), rs.getString("industry"),
-                rs.getString("plan_code"), rs.getString("message"), rs.getString("status"), rs.getString("decision_reason"),
+                rs.getString("message"), rs.getString("status"), rs.getString("decision_reason"),
                 rs.getObject("business_id", UUID.class), rs.getString("tenant_code"), decided == null ? null : decided.toInstant(),
                 rs.getTimestamp("created_at").toInstant());
     }
