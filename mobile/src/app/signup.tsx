@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Data'
 import { Alert } from '@/components/ui/Feedback'
 import { Field, Input, OTPInput, PhoneInput, Select } from '@/components/ui/Form'
+import { PoweredBy } from '@/components/ui/BusinessBrand'
 import { Screen } from '@/components/ui/Screen'
 import { Text } from '@/components/ui/Text'
 import { api, ApiError } from '@/services/api'
@@ -61,6 +62,7 @@ export default function SignupScreen() {
       )}
       {err && <Alert tone="danger">{err.message}</Alert>}
       {!done && <Button variant="ghost" onPress={() => router.replace('/login')}>Back to sign in</Button>}
+      <PoweredBy />
     </Screen>
   )
 }

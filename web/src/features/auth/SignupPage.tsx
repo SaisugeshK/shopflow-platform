@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Feedback'
 import { Field, Input, OTPInput, PhoneInput, Select, Textarea } from '@/components/ui/Form'
 import { api, ApiError } from '@/services/api'
 import { GST_STATES, stateCodeOf } from '@/utils/india'
+import { PoweredBy } from '@/components/layout/BusinessBrand'
 
 interface Challenge { requestId: string; maskedMobile: string; expiresInSeconds: number; demoOtp?: string }
 
@@ -85,6 +86,7 @@ export function SignupPage() {
             </form>
           )}
         </div>
+        <PoweredBy className="auth-credit" />
       </div>
     </div>
   )

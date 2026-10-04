@@ -17,6 +17,7 @@ import { choiceKey, TenantPicker } from '@/components/ui/TenantPicker'
 import { api, ApiError, applySession, type AuthResponse, type TenantChoice } from '@/services/api'
 import { useAuthStore } from '@/store/auth'
 import { colors, radius, shadow } from '@/theme/tokens'
+import { PoweredBy } from '@/components/ui/BusinessBrand'
 
 interface Challenge {
   requestId: string
@@ -196,6 +197,7 @@ export default function LoginScreen({ join }: { join?: JoinTenant } = {}) {
             <Feather name="shield" size={14} color={colors.muted} />
             <Text variant="xs" color="muted">Secure sign-in with a one-time password. No passwords to remember.</Text>
           </View>}
+          {!keyboardOpen && <PoweredBy />}
       </KeyboardAwareScroll>
     </SafeAreaView>
   )

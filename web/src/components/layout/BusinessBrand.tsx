@@ -40,7 +40,8 @@ export const COMPANY_URL = 'https://techsparksoftwaresolutions.com'
 export function PoweredBy({ className }: { className?: string }) {
   return (
     <span className={className ?? 'powered-by'}>
-      Powered by <strong>ShopFlow</strong> · <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer">TechSpark Software Solutions</a>
+      <span className="powered-by-line">Powered by <strong>ShopFlow</strong></span>
+      <span className="powered-by-line">A product of <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer">TechSpark Software Solutions</a></span>
     </span>
   )
 }

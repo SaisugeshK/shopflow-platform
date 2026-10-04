@@ -11,6 +11,7 @@ import { api, ApiError } from '@/services/api'
 import type { AuthResponse, TenantChoice } from '@/services/api'
 import { choiceKey, TenantPicker, useCompleteSignIn } from './TenantPicker'
 import { Link } from 'react-router-dom'
+import { PoweredBy } from '@/components/layout/BusinessBrand'
 
 interface Challenge {
   requestId: string
@@ -122,6 +123,7 @@ export function LoginPage({ join }: { join?: JoinTenant } = {}) {
         </div>
       </section>
       <section className="auth-panel">
+        <div style={{ width: 'min(420px, 100%)' }}>
         <motion.div className="auth-card card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <div className="card-body stack" style={{ padding: 32 }}>
             {selection ? (
@@ -186,6 +188,8 @@ export function LoginPage({ join }: { join?: JoinTenant } = {}) {
             )}
           </div>
         </motion.div>
+        <PoweredBy className="auth-credit" />
+        </div>
       </section>
     </div>
   )

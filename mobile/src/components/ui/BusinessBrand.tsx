@@ -36,10 +36,13 @@ const COMPANY_URL = 'https://techsparksoftwaresolutions.com'
 
 export function PoweredBy() {
   return (
-    <Text variant="xs" color="muted" align="center">
-      Powered by <Text variant="xs" weight="700">ShopFlow</Text> ·{' '}
-      <Text variant="xs" weight="700" color="primary" accessibilityRole="link" onPress={() => Linking.openURL(COMPANY_URL)}>TechSpark Software Solutions</Text>
-    </Text>
+    <View style={{ gap: 2 }}>
+      <Text variant="xs" color="muted" align="center">Powered by <Text variant="xs" weight="700">ShopFlow</Text></Text>
+      <Text variant="xs" color="muted" align="center">
+        A product of{' '}
+        <Text variant="xs" weight="700" color="primary" accessibilityRole="link" onPress={() => Linking.openURL(COMPANY_URL)}>TechSpark Software Solutions</Text>
+      </Text>
+    </View>
   )
 }
 

@@ -102,7 +102,11 @@ img { max-width: 100%; display: block; }
 /* No up/down spinner arrows on number fields anywhere in the app. */
 input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 input[type='number']::-webkit-inner-spin-button, input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.powered-by a { color: inherit; font-weight: 600; }
+.powered-by a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; display: inline-block; white-space: nowrap; }
+.auth-credit { display: block; margin-top: 20px; text-align: center; font-size: 0.75rem; color: var(--color-muted); line-height: 1.6; }
+.auth-credit strong { color: var(--color-text); font-weight: 600; }
+.auth-credit .powered-by-line { display: block; }
+.auth-credit a { color: var(--color-primary); font-weight: 600; }
 .otp-input input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgb(37 99 235 / 0.18); }
 .checkbox { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.875rem; }
 .checkbox input { width: 16px; height: 16px; accent-color: var(--color-primary); }
@@ -206,7 +210,8 @@ input[type='number']::-webkit-inner-spin-button, input[type='number']::-webkit-o
 .brand-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); display: grid; place-items: center; color: #fff; flex-shrink: 0; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.02em; }
 .brand-logo { border-radius: 10px; object-fit: contain; background: #fff; flex-shrink: 0; }
 .sidebar-brand .brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.powered-by { display: block; padding: 8px 12px 2px; font-size: 0.6875rem; color: rgb(203 213 225 / 0.7); white-space: nowrap; }
+.powered-by { display: block; padding: 8px 12px 2px; font-size: 0.6875rem; line-height: 1.5; color: rgb(203 213 225 / 0.7); }
+.powered-by-line { display: block; }
 .powered-by strong { color: #cbd5e1; font-weight: 600; }
 .portal-brand-name { font-weight: 700; color: var(--color-text); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .portal-credit { text-align: center; margin-top: var(--space-8); }
@@ -388,3 +393,4 @@ input[type='number']::-webkit-inner-spin-button, input[type='number']::-webkit-o
 .revision-list > li { border-left: 2px solid var(--color-border); padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
 .revision-changes { margin: 4px 0 0; padding-left: 16px; color: var(--color-muted); }
 .quote-line { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.card > .auth-credit { padding: 0 16px 16px; margin-top: 0; }
