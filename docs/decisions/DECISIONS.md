@@ -336,3 +336,12 @@ headers, workspace switcher). "ShopFlow" is the product name ("Powered by ShopFl
   access stay on the web console.
 - **Branding**: every "Powered by ShopFlow" footer also names and links the company, TechSpark Software Solutions
   (https://techsparksoftwaresolutions.com).
+
+## D-041 Industry words and units
+
+Each industry has default words for products, customers and suppliers, default variant option names, and a default
+list of product units (always including PCS and BOX); the owner can rename the words and choose the units in
+Settings → Words & units. The words are applied inside the shared UI components rather than per screen, so every
+current and future screen follows them. User data and legal invoice wording are never changed. Units stay codes of
+the fixed product unit catalogue, so stock, conversions and reports keep working across businesses.
+

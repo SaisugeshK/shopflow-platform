@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { LoaderCircle } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { wordify } from '@/stores/words'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'
 
@@ -22,7 +23,7 @@ export function Button({ variant = 'primary', size = 'md', loading, block, icon,
       {...rest}
     >
       {loading ? <LoaderCircle size={16} className="spin" aria-hidden /> : icon}
-      {children}
+      {wordify(children)}
     </button>
   )
 }

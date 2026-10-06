@@ -6,6 +6,7 @@ import { ApiError } from '@/services/api'
 import { colors, radius, tones, type Tone } from '@/theme/tokens'
 import { Button, type IconName } from './Button'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 export function Spinner({ size = 'small' }: { size?: 'small' | 'large' }) {
   return <ActivityIndicator size={size} color={colors.primary} accessibilityLabel="Loading" />
@@ -51,8 +52,8 @@ export function EmptyState({ title, description, icon = 'inbox', action }: { tit
       <View style={[styles.emptyIcon, { backgroundColor: colors.surface2 }]}>
         <Feather name={icon} size={26} color={colors.muted} />
       </View>
-      <Text variant="h3" align="center">{title}</Text>
-      {description && <Text variant="small" color="muted" align="center">{description}</Text>}
+      <Text variant="h3" align="center">{wordify(title)}</Text>
+      {description && <Text variant="small" color="muted" align="center">{wordify(description)}</Text>}
       {action}
     </View>
   )

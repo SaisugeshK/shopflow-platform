@@ -5,13 +5,14 @@ import { colors, radius, shadow, tones, type Tone } from '@/theme/tokens'
 import { money, moneyCompact, titleCase } from '@/utils/format'
 import type { IconName } from './Button'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 export function Card({ title, actions, children, padded = true, style, onPress, accessibilityLabel }: { title?: string; actions?: ReactNode; children?: ReactNode; padded?: boolean; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string }) {
   const body = (
     <>
       {(title || actions) && (
         <View style={styles.cardHeader}>
-          {title ? <Text variant="h3" style={{ flex: 1 }}>{title}</Text> : <View style={{ flex: 1 }} />}
+          {title ? <Text variant="h3" style={{ flex: 1 }}>{wordify(title)}</Text> : <View style={{ flex: 1 }} />}
           {actions}
         </View>
       )}
@@ -61,7 +62,7 @@ export function KeyValue({ items }: { items: [string, ReactNode | undefined | nu
     <View style={{ gap: 10 }}>
       {shown.map(([k, v]) => (
         <View key={k} style={styles.kv}>
-          <Text variant="small" color="muted" style={styles.kvKey}>{k}</Text>
+          <Text variant="small" color="muted" style={styles.kvKey}>{wordify(k)}</Text>
           <View style={styles.kvValue}>{typeof v === 'string' || typeof v === 'number' ? <Text variant="small" weight="500" align="right">{v}</Text> : v}</View>
         </View>
       ))}
@@ -85,7 +86,7 @@ export function StatCard({ label, value, hint, tone = 'primary', icon, onPress, 
               <Feather name={icon} size={15} color={t.fg} />
             </View>
           )}
-          <Text variant="xs" color="muted" weight="600" style={{ flex: 1 }} numberOfLines={2}>{label.toUpperCase()}</Text>
+          <Text variant="xs" color="muted" weight="600" style={{ flex: 1 }} numberOfLines={2}>{wordify(label).toUpperCase()}</Text>
         </View>
         <Text variant="h2" num numberOfLines={1} adjustsFontSizeToFit>{display}</Text>
         {hint && <Text variant="xs" color="muted" numberOfLines={2}>{hint}</Text>}

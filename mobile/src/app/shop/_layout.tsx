@@ -1,6 +1,7 @@
 import { Redirect, Stack } from 'expo-router'
 import { useAuthStore } from '@/store/auth'
 import { colors } from '@/theme/tokens'
+import { wordify } from '@/store/words'
 
 /** Customer area: only approved customers (others go to the registration status screen). */
 export default function ShopLayout() {
@@ -20,7 +21,7 @@ export default function ShopLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
+      <Stack.Screen name="product/[id]" options={{ title: wordify('Product') }} />
       <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
       <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
       <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />

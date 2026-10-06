@@ -3,6 +3,7 @@ import { CircleCheck, Inbox, Info, Lock, LoaderCircle, RefreshCw, TriangleAlert,
 import type { CSSProperties, ReactNode } from 'react'
 import { ApiError } from '@/services/api'
 import { Button } from './Button'
+import { wordify } from '@/stores/words'
 
 export function Spinner({ size = 20, label = 'Loading' }: { size?: number; label?: string }) {
   return (
@@ -35,8 +36,8 @@ export function EmptyState({ title, description, action, icon }: { title: string
   return (
     <div className="empty-state">
       <div className="icon-wrap tone-primary">{icon ?? <Inbox size={26} />}</div>
-      <h3>{title}</h3>
-      {description && <p className="muted small" style={{ maxWidth: 420 }}>{description}</p>}
+      <h3>{wordify(title)}</h3>
+      {description && <p className="muted small" style={{ maxWidth: 420 }}>{wordify(description)}</p>}
       {action}
     </div>
   )

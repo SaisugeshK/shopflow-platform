@@ -7,6 +7,7 @@ import { colors, MAX_CONTENT_WIDTH } from '@/theme/tokens'
 import { EmptyState, ErrorState, ListSkeleton, Spinner } from './Feedback'
 import { KeyboardAwareScroll } from './KeyboardAware'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 /**
  * Scrollable page body: pull-to-refresh, centred and width-capped on tablets. Keyboard-aware: the content and the
@@ -38,7 +39,7 @@ export function Screen({ children, onRefresh, refreshing = false, footer, conten
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text variant="h3" style={{ flex: 1 }} accessibilityRole="header">{children}</Text>
+      <Text variant="h3" style={{ flex: 1 }} accessibilityRole="header">{wordify(children)}</Text>
       {action}
     </View>
   )

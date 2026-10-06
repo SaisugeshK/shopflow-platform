@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { Minus, Plus, Search, X } from 'lucide-react'
 import { forwardRef, useId, useRef } from 'react'
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { wordify } from '@/stores/words'
 
 interface FieldProps {
   label: string
@@ -18,7 +19,7 @@ export function Field({ label, htmlFor, error, hint, required, className, childr
   return (
     <div className={clsx('field', className)}>
       <label htmlFor={htmlFor}>
-        {label}
+        {wordify(label)}
         {required && <span className="danger-text" aria-hidden> *</span>}
       </label>
       {children}
@@ -41,6 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ c
       aria-invalid={invalid || undefined}
       aria-describedby={rest.id ? `${rest.id}-${invalid ? 'error' : 'hint'}` : undefined}
       {...rest}
+      placeholder={wordify(rest.placeholder)}
     />
   )
 })
@@ -50,7 +52,7 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select({ className, invalid, options, placeholder, children, ...rest }, ref) {
   return (
     <select ref={ref} className={clsx('select', className)} aria-invalid={invalid || undefined} {...rest}>
-      {placeholder !== undefined && <option value="">{placeholder}</option>}
+      {placeholder !== undefined && <option value="">{wordify(placeholder)}</option>}
       {options?.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
       ))}
@@ -79,7 +81,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
   return (
     <div className={clsx('input-group has-clear', className)}>
       <Search size={16} className="prefix" aria-hidden />
-      <input ref={ref} className="input" type="search" aria-label={label} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && value) onChange('') }} />
+      <input ref={ref} className="input" type="search" aria-label={wordify(label)} placeholder={wordify(placeholder)} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && value) onChange('') }} />
       {value && <ClearButton onClear={() => { onChange(''); ref.current?.focus() }} />}
     </div>
   )
@@ -207,7 +209,7 @@ export const PriceInput = forwardRef<HTMLInputElement, InputProps>(function Pric
   return (
     <div className={clsx('input-group', className)}>
       <span className="prefix">₹</span>
-      <input ref={ref} className="input" type="number" inputMode="decimal" step="0.01" min="0" aria-invalid={invalid || undefined} {...rest} />
+      <input ref={ref} className="input" type="number" inputMode="decimal" step="0.01" min="0" aria-invalid={invalid || undefined} {...rest} placeholder={wordify(rest.placeholder)} />
     </div>
   )
 })

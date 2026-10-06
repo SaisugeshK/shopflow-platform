@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { notifyInputFocus, useKeyboardOverlap } from '@/hooks/useKeyboard'
 import { colors, radius, TOUCH } from '@/theme/tokens'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 /** Label + control + error/hint, with the error announced to screen readers. */
 export function Field({ label, error, hint, required, children }: { label?: string; error?: string; hint?: string; required?: boolean; children: ReactNode }) {
@@ -12,7 +13,7 @@ export function Field({ label, error, hint, required, children }: { label?: stri
     <View style={styles.field}>
       {label && (
         <Text variant="small" weight="600">
-          {label}
+          {wordify(label)}
           {required && <Text variant="small" color="danger"> *</Text>}
         </Text>
       )}
@@ -48,6 +49,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input({ invalid,
         editable={editable}
         maxFontSizeMultiplier={1.4}
         {...rest}
+        placeholder={wordify(rest.placeholder)}
         onFocus={(e) => {
           setFocused(true)
           notifyInputFocus()
@@ -72,8 +74,8 @@ export function SearchBar({ value, onChangeText, placeholder = 'Search…', onSu
     <Input
       value={value}
       onChangeText={onChangeText}
-      placeholder={placeholder}
-      accessibilityLabel={placeholder}
+      placeholder={wordify(placeholder)}
+      accessibilityLabel={wordify(placeholder)}
       returnKeyType="search"
       onSubmitEditing={onSubmit}
       autoCorrect={false}
@@ -152,7 +154,7 @@ export function Select({ value, onChange, options, placeholder = 'Select…', la
         onPress={() => setOpen(true)}
         style={[styles.inputWrap, invalid && styles.invalid, { paddingHorizontal: 12 }]}
       >
-        <Text style={{ flex: 1 }} color={selected ? 'text' : 'muted'} numberOfLines={1}>{selected?.label ?? placeholder}</Text>
+        <Text style={{ flex: 1 }} color={selected ? 'text' : 'muted'} numberOfLines={1}>{selected?.label ?? wordify(placeholder)}</Text>
         <Feather name="chevron-down" size={18} color={colors.muted} />
       </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent navigationBarTranslucent>

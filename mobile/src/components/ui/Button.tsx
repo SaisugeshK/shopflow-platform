@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
 import { colors, radius, TOUCH } from '@/theme/tokens'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 export type IconName = ComponentProps<typeof Feather>['name']
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'
@@ -57,7 +58,7 @@ export function Button({ children, onPress, variant = 'primary', size = 'md', ic
         <View style={styles.inner}>
           {icon && <Feather name={icon} size={size === 'sm' ? 14 : 17} color={v.fg} />}
           <Text variant={size === 'sm' ? 'small' : 'body'} weight="600" style={{ color: v.fg }} numberOfLines={1}>
-            {children}
+            {wordify(children)}
           </Text>
         </View>
       )}

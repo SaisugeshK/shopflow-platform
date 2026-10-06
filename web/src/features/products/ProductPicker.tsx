@@ -6,6 +6,7 @@ import { useDebounced } from '@/hooks/useListParams'
 import { api } from '@/services/api'
 import type { Product } from '@/services/types'
 import { money, quantity } from '@/utils/format'
+import { wordify } from '@/stores/words'
 
 /** Type-ahead product search used by purchase and invoice entry forms. Keyboard: ↑/↓ to move, Enter to pick. */
 export function ProductPicker({ onPick, placeholder = 'Search product by name or SKU…', exclude = [] }: { onPick: (p: Product) => void; placeholder?: string; exclude?: string[] }) {
@@ -39,7 +40,7 @@ export function ProductPicker({ onPick, placeholder = 'Search product by name or
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label="Add product"
-          placeholder={placeholder}
+          placeholder={wordify(placeholder)}
           value={text}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}

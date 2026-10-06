@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth'
 import { colors } from '@/theme/tokens'
 import { initials, titleCase } from '@/utils/format'
 import { BranchSwitcherCard } from './SaasScreens'
+import { wordify } from '@/store/words'
 
 /** Everything beyond the bottom tabs, grouped like the web sidebar and filtered by permission. */
 export default function MoreScreen() {
@@ -36,7 +37,7 @@ export default function MoreScreen() {
         <View key={s.title} style={{ gap: 8 }}>
           <SectionTitle>{s.title}</SectionTitle>
           <Card padded={false}>
-            {s.items.map((i) => <ListRow key={i.href} icon={i.icon} title={i.label} onPress={() => router.push(i.href as never)} />)}
+            {s.items.map((i) => <ListRow key={i.href} icon={i.icon} title={wordify(i.label)} onPress={() => router.push(i.href as never)} />)}
           </Card>
         </View>
       ))}

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -48,9 +49,12 @@ public class BusinessController {
     private final BusinessSettingsService service;
     private final FileService files;
 
-    public BusinessController(BusinessSettingsService service, FileService files) {
+    private final com.shopflow.tenancy.Vocabulary vocabulary;
+
+    public BusinessController(BusinessSettingsService service, FileService files, com.shopflow.tenancy.Vocabulary vocabulary) {
         this.service = service;
         this.files = files;
+        this.vocabulary = vocabulary;
     }
 
     @GetMapping
@@ -147,5 +151,23 @@ public class BusinessController {
     @Operation(summary = "List Indian states with GST state codes")
     public ApiResponse<Map<String, String>> states() {
         return ApiResponse.ok(new TreeMap<>(IndianStates.all()));
+    }
+
+    /** Words and units for this business's screens (§0B.15): industry defaults plus the owner's changes. */
+    @GetMapping("/vocabulary")
+    @PreAuthorize(READ_SETTINGS)
+    @Operation(summary = "Words and units used in the screens")
+    public ApiResponse<com.shopflow.tenancy.Vocabulary.Effective> vocabulary() {
+        return ApiResponse.ok(vocabulary.effective());
+    }
+
+    public record VocabularyRequest(java.util.Map<String, String> terms, java.util.List<String> units) {
+    }
+
+    @PutMapping("/vocabulary")
+    @PreAuthorize("hasAuthority('SETTINGS_MANAGE')")
+    @Operation(summary = "Rename words and choose units", description = "Empty values go back to the industry defaults.")
+    public ApiResponse<com.shopflow.tenancy.Vocabulary.Effective> saveVocabulary(@RequestBody VocabularyRequest request) {
+        return ApiResponse.ok(vocabulary.save(request.terms(), request.units()));
     }
 }

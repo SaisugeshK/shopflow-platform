@@ -12,10 +12,8 @@ import { api, ApiError, download } from '@/services/api'
 import type { BatchRow, PricingMode, Product, SerialRow, UnitOption } from '@/services/types'
 import { useCan, useModule } from '@/stores/auth'
 import { date, money, quantity, titleCase } from '@/utils/format'
+import { unitLabel, unitSelectOptions, W } from '@/stores/words'
 
-/** Units a product can be stocked or sold in (§0B.7). */
-export const UNITS = ['PCS', 'NOS', 'BOX', 'PACK', 'CASE', 'CARTON', 'DOZEN', 'SET', 'PAIR', 'KG', 'G', 'QUINTAL', 'TONNE', 'L', 'ML',
-  'M', 'CM', 'ROLL', 'COIL', 'REAM', 'BUNDLE', 'BAG', 'SQFT', 'CFT', 'LOAD']
 const FRACTIONAL = ['KG', 'G', 'L', 'ML', 'M', 'TONNE', 'QUINTAL', 'SQFT', 'CFT', 'CM']
 
 export interface ProductOptionsValue {
@@ -116,7 +114,7 @@ export function ProductOptionsCard({ value, onChange, baseUnit, error }: { value
               {value.units.map((u, i) => (
                 <div key={i} className="unit-row">
                   <Select aria-label="Unit" value={u.unit} onChange={(e) => setUnit(i, { unit: e.target.value })} placeholder="Unit"
-                    options={UNITS.filter((x) => x !== baseUnit).map((x) => ({ value: x, label: x }))} />
+                    options={unitSelectOptions(u.unit || undefined).filter((x) => x.value !== baseUnit)} />
                   <span className="small muted">=</span>
                   <Input aria-label="Factor" type="number" min={0} step="any" placeholder="Factor" value={u.factor} onChange={(e) => setUnit(i, { factor: e.target.value })} />
                   <span className="small muted">{baseUnit}</span>
@@ -141,7 +139,7 @@ export function VariantsCard({ product }: { product: Product }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [open, setOpen] = useState(false)
-  const [attrs, setAttrs] = useState([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }])
+  const [attrs, setAttrs] = useState(() => W.variantOptions.slice(0, 3).map((name) => ({ name, values: '' })))
   const [price, setPrice] = useState('')
   const variants = useQuery({ queryKey: ['variants', product.id], queryFn: () => api.get<Product[]>(`/api/v1/products/${product.id}/variants`), enabled: product.variantGroup })
   const generate = useMutation({
@@ -282,7 +280,7 @@ export function LabelsButton({ productIds, label = 'Print labels' }: { productId
 
 /** Unit choices of a product for document lines: base unit first, then alternate units. */
 export function unitOptions(p: { unit: string; units?: UnitOption[] }) {
-  return [{ value: p.unit, label: p.unit }, ...(p.units ?? []).map((u) => ({ value: u.unit, label: `${u.unit} (= ${Number(u.factor)} ${p.unit})` }))]
+  return [{ value: p.unit, label: unitLabel(p.unit) }, ...(p.units ?? []).map((u) => ({ value: u.unit, label: `${u.unit} (= ${Number(u.factor)} ${p.unit})` }))]
 }
 
 export function unitFactor(p: { unit: string; units?: UnitOption[] }, unit?: string) {

@@ -6,6 +6,7 @@ import { BusinessBrand } from '@/components/ui/BusinessBrand'
 import { useTabBarOptions } from '@/components/ui/tabBar'
 import { NotificationBell } from '@/features/notifications'
 import { useAuthStore } from '@/store/auth'
+import { wordify } from '@/store/words'
 
 /** Owner/Admin bottom tabs. Tabs the user has no permission for are hidden (href: null). */
 export default function AdminTabs() {
@@ -26,8 +27,8 @@ export default function AdminTabs() {
     >
       <Tabs.Screen name="index" options={{ title: 'Dashboard', headerTitle: () => <BusinessBrand />, href: has('DASHBOARD_VIEW', 'DASHBOARD_OWNER_VIEW') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="grid" color={color} size={size - 2} /> }} />
       <Tabs.Screen name="orders" options={{ title: 'Orders', href: has('ORDER_READ') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="shopping-cart" color={color} size={size - 2} /> }} />
-      <Tabs.Screen name="products" options={{ title: 'Products', href: has('PRODUCT_READ') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="package" color={color} size={size - 2} /> }} />
-      <Tabs.Screen name="customers" options={{ title: 'Customers', href: has('CUSTOMER_READ') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="users" color={color} size={size - 2} /> }} />
+      <Tabs.Screen name="products" options={{ title: wordify('Products'), href: has('PRODUCT_READ') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="package" color={color} size={size - 2} /> }} />
+      <Tabs.Screen name="customers" options={{ title: wordify('Customers'), href: has('CUSTOMER_READ') ? undefined : null, tabBarIcon: ({ color, size }) => <Feather name="users" color={color} size={size - 2} /> }} />
       <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: ({ color, size }) => <Feather name="menu" color={color} size={size - 2} /> }} />
     </Tabs>
   )

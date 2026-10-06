@@ -17,9 +17,10 @@ import type { Category, MovementRow, Product } from '@/services/types'
 import { useCan, useModule } from '@/stores/auth'
 import { dateTime, money, quantity, titleCase } from '@/utils/format'
 import {
-  BatchesCard, defaultOptions, LabelsButton, optionsBody, optionsFrom, ProductOptionsCard, SerialsCard, UNITS, VariantsCard,
+  BatchesCard, defaultOptions, LabelsButton, optionsBody, optionsFrom, ProductOptionsCard, SerialsCard, VariantsCard,
 } from './ProductOptions'
 import type { ProductOptionsValue } from './ProductOptions'
+import { unitSelectOptions } from '@/stores/words'
 
 export function useCategories() {
   return useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/api/v1/categories'), staleTime: 60_000 })
@@ -161,7 +162,7 @@ export function ProductFormPage() {
               <Select id="categoryId" {...form.register('categoryId')} placeholder="Choose category" options={(categories.data ?? []).filter((c) => c.active).map((c) => ({ value: c.id, label: c.name }))} invalid={!!fieldErr('categoryId')} />
             </Field>
             <Field label="Brand" htmlFor="brand"><Input id="brand" {...form.register('brand')} /></Field>
-            <Field label="Unit" htmlFor="unit" required><Select id="unit" {...form.register('unit')} options={UNITS.map((u) => ({ value: u, label: u }))} /></Field>
+            <Field label="Unit" htmlFor="unit" required><Select id="unit" {...form.register('unit')} options={unitSelectOptions(form.watch('unit'))} /></Field>
             <Field label="Description" htmlFor="description" className="span-2"><Textarea id="description" {...form.register('description')} /></Field>
           </div>
         </Card>

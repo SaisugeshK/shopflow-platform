@@ -68,6 +68,7 @@ public class AuthService {
     private final BusinessRepository businesses;
     private final PlatformAdminRepository platformAdmins;
     private final TenantModules modules;
+    private final com.shopflow.tenancy.Vocabulary vocabulary;
     private final com.shopflow.suppliers.SupplierRepositories.SupplierRepository supplierRepository;
 
     public AuthService(OtpService otpService, UserService userService, CustomerService customerService,
@@ -75,8 +76,9 @@ public class AuthService {
                        SessionService sessionService, AuditService audit, AppProperties properties,
                        PlatformTransactionManager txManager, BusinessContext businessContext,
                        MembershipService membershipService, BusinessRepository businesses,
-                       PlatformAdminRepository platformAdmins, TenantModules modules,
+                       PlatformAdminRepository platformAdmins, TenantModules modules, com.shopflow.tenancy.Vocabulary vocabulary,
                        com.shopflow.suppliers.SupplierRepositories.SupplierRepository supplierRepository) {
+        this.vocabulary = vocabulary;
         this.modules = modules;
         this.supplierRepository = supplierRepository;
         this.otpService = otpService;
@@ -353,7 +355,7 @@ public class AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_UNAUTHORIZED, "Authentication required"));
         return new MeResponse(admin.getId(), admin.getFullName() + " (support)", admin.getMobileNumber(), null, Roles.OWNER,
                 permissions, null, new BusinessInfo(businessContext.businessId(), businessContext.displayName(), businessContext.logoUrl()),
-                List.of(), modules.enabled().stream().map(Enum::name).sorted().toList(), true, null);
+                List.of(), modules.enabled().stream().map(Enum::name).sorted().toList(), true, null, vocabulary.words());
     }
 
     /**
@@ -439,12 +441,13 @@ public class AuthService {
                 switchTargets(user.getMobileNumber()),
                 modules.enabled(user.getBusinessId()).stream().map(Enum::name).sorted().toList(), false,
                 user.hasRole(Roles.SUPPLIER) ? supplierRepository.findByUserId(user.getId())
-                        .map(sp -> new AuthDtos.SupplierInfo(sp.getId(), sp.getSupplierCode(), sp.getName())).orElse(null) : null);
+                        .map(sp -> new AuthDtos.SupplierInfo(sp.getId(), sp.getSupplierCode(), sp.getName())).orElse(null) : null,
+                vocabulary.words());
     }
 
     private MeResponse platformMe(PlatformAdmin admin) {
         return new MeResponse(admin.getId(), admin.getFullName(), admin.getMobileNumber(), null, Roles.SUPER_ADMIN,
-                List.copyOf(PLATFORM_PERMISSIONS), null, null, switchTargets(admin.getMobileNumber()), List.of(), false, null);
+                List.copyOf(PLATFORM_PERMISSIONS), null, null, switchTargets(admin.getMobileNumber()), List.of(), false, null, null);
     }
 
     private List<TenantChoice> switchTargets(String mobile) {

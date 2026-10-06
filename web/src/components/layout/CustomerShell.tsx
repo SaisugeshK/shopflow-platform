@@ -11,6 +11,7 @@ import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { api } from '@/services/api'
 import type { Cart } from '@/services/types'
 import { useAuthStore, useModule } from '@/stores/auth'
+import { wordify } from '@/stores/words'
 
 export function useCart() {
   return useQuery({ queryKey: ['cart'], queryFn: () => api.get<Cart>('/api/v1/cart') })
@@ -50,7 +51,7 @@ export function CustomerShell() {
           </NavLink>
           <nav className="portal-nav" aria-label="Main">
             {nav.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => clsx(isActive && 'active')}>{n.label}</NavLink>
+              <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => clsx(isActive && 'active')}>{wordify(n.label)}</NavLink>
             ))}
           </nav>
           <div className="grow" />
@@ -75,7 +76,7 @@ export function CustomerShell() {
       )}
       <nav className="bottom-nav" aria-label="Bottom navigation">
         <NavLink to="/shop" end className={({ isActive }) => clsx(isActive && 'active')}><House size={20} />Home</NavLink>
-        <NavLink to="/shop/products" className={({ isActive }) => clsx(isActive && 'active')}><Package size={20} />Products</NavLink>
+        <NavLink to="/shop/products" className={({ isActive }) => clsx(isActive && 'active')}><Package size={20} />{wordify('Products')}</NavLink>
         <NavLink to="/shop/cart" className={({ isActive }) => clsx(isActive && 'active')}>
           <span style={{ position: 'relative' }}><ShoppingCart size={20} />{count > 0 && <span className="cart-count">{count}</span>}</span>Cart
         </NavLink>

@@ -13,8 +13,9 @@ import { useModule } from '@/stores/auth'
 import { api, ApiError } from '@/services/api'
 import type { BusinessProfile } from '@/services/types'
 import { titleCase } from '@/utils/format'
+import { WordsSettings } from './WordsSettings'
 
-type Tab = 'profile' | 'bank' | 'invoice' | 'tax' | 'rules' | 'whatsapp'
+type Tab = 'profile' | 'bank' | 'invoice' | 'tax' | 'rules' | 'whatsapp' | 'words'
 type Values = Record<string, string | number | boolean | null | undefined | number[]>
 
 /** O25–O28 Business settings (§79). Every change is audited on the server. */
@@ -27,7 +28,9 @@ export function SettingsPage() {
       <Tabs label="Settings sections" value={tab} onChange={setTab} tabs={[
         { value: 'profile', label: 'Business profile' }, { value: 'bank', label: 'Bank details' }, { value: 'invoice', label: 'Invoice settings' },
         { value: 'tax', label: 'GST / Tax' }, { value: 'rules', label: 'Credit & orders' }, { value: 'whatsapp', label: 'WhatsApp & notifications' },
+        { value: 'words', label: 'Words & units' },
       ]} />
+      {tab === 'words' && <WordsSettings />}
       {tab === 'profile' && <ProfileSettings />}
       {tab === 'bank' && <BankSettings />}
       {tab === 'invoice' && <SettingsForm path="/api/v1/business/invoice-settings" fields={[

@@ -65,7 +65,9 @@ public final class AuthDtos {
     public record MeResponse(UUID id, String fullName, String mobileNumber, String email, String role,
                              List<String> permissions, CustomerInfo customer, BusinessInfo business,
                              List<TenantChoice> memberships, List<String> modules, boolean support,
-                             SupplierInfo supplier) {
+                             SupplierInfo supplier,
+                             /* The business's words and units (§0B.15); null outside a business. */
+                             com.shopflow.tenancy.Vocabulary.Words vocabulary) {
     }
 
     /**

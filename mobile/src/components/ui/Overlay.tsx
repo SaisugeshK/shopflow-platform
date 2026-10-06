@@ -7,6 +7,7 @@ import { useKeyboardOverlap } from '@/hooks/useKeyboard'
 import { Field, Input } from './Form'
 import { KeyboardAwareScroll } from './KeyboardAware'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 /**
  * Bottom sheet dialog: title, scrollable body and a sticky footer. Centred card on wide screens. When the keyboard
@@ -55,13 +56,13 @@ export function ConfirmDialog({ open, onClose, title, message, confirmLabel = 'C
   }, [open])
   const blocked = requireReason && reason.trim().length < 3
   return (
-    <Sheet open={open} onClose={onClose} title={title} footer={
+    <Sheet open={open} onClose={onClose} title={wordify(title)} footer={
       <View style={styles.actions}>
         <Button variant="secondary" onPress={onClose} style={{ flex: 1 }}>Back</Button>
         <Button variant={tone === 'danger' ? 'danger' : 'primary'} loading={loading} disabled={blocked} onPress={() => onConfirm(reason.trim())} style={{ flex: 1 }}>{confirmLabel}</Button>
       </View>
     }>
-      {message && <Text color="muted">{message}</Text>}
+      {message && <Text color="muted">{wordify(message)}</Text>}
       {requireReason && (
         <Field label={reasonLabel} required hint="At least 3 characters">
           <Input value={reason} onChangeText={setReason} multiline accessibilityLabel={reasonLabel} autoFocus />

@@ -473,6 +473,42 @@ Deployment to GCP happens only after the product owner approves.
   once no longer fails with a conflict.
 - Tests: `SaasIntegrationTest` (backend), `saas.spec.ts` (web and mobile), new routes added to both viewport sweeps.
 
+## 0B.15 Industry words and units
+
+Every business sees the words and units of its trade (migration V14, `tenancy/Vocabulary`, decision D-041):
+
+| Industry | Product | Customer | Supplier | Units offered (codes) | Variant options |
+|---|---|---|---|---|---|
+| General | Product | Customer | Supplier | PCS BOX NOS PACK SET DOZEN KG | Size, Colour |
+| Grocery | Item | Retailer | Distributor | PCS BOX PACK CASE CARTON KG G L ML BAG | Pack size, Flavour |
+| Textile | Article | Dealer | Mill | PCS BOX M ROLL SET DOZEN KG BUNDLE | Size, Colour, Weight |
+| Construction | Material | Contractor | Manufacturer | PCS BOX BAG KG TONNE CFT SQFT NOS LOAD | Grade, Size |
+| Electrical | Item | Dealer | Distributor | PCS BOX M COIL NOS SET | Rating, Colour |
+| Hardware | Item | Customer | Supplier | PCS BOX KG M SET NOS | Size, Finish |
+| FMCG distribution | Item | Retailer | Company | PCS BOX PACK CASE CARTON | Pack size, Flavour |
+| Auto spares | Part | Customer | Supplier | PCS BOX SET L NOS | Model, Make |
+| Footwear | Article | Retailer | Manufacturer | PCS BOX PAIR | Size, Colour |
+| Cosmetics | Product | Retailer | Distributor | PCS BOX PACK | Shade, Pack size |
+| Stationery | Item | Customer | Supplier | PCS BOX PACK REAM | Size, Colour |
+| Mobiles | Product | Retailer | Distributor | PCS BOX | Storage, Colour |
+| Paints | Product | Dealer | Company | PCS BOX L KG | Shade, Pack size |
+| Plastics | Item | Customer | Manufacturer | PCS BOX KG BUNDLE | Size, Thickness |
+| Furniture | Product | Customer | Manufacturer | PCS BOX SET | Size, Finish |
+| Agri inputs | Product | Dealer | Company | PCS BOX BAG KG L | Pack size, Grade |
+
+- Every industry offers PCS and BOX. Units are codes of the fixed product unit catalogue (25 codes); screens show
+  them as "Metre (M)", "Roll (ROLL)" and so on.
+- The owner changes words and units in Settings → **Words & units** (web and app): rename product / customer /
+  supplier (singular and plural), set the variant option names, and tick the units to offer. Empty fields and
+  "Use industry defaults" go back to the industry. Stored in `business_settings.custom_terms` (JSON) and
+  `business_settings.units`; `GET/PUT /api/v1/business/vocabulary`. `GET /auth/me` returns `vocabulary {terms, units}`.
+- The shared UI components (page and card titles, field labels, table headings, tabs, menus, buttons, placeholders,
+  empty screens, confirmations, toasts, screen titles on the app) swap "Product(s) / Customer(s) / Supplier(s)" for
+  the business's words, so new screens follow automatically. Data people type (names, notes) and the legal wording of
+  invoices and PDFs are never changed. Unit dropdowns list the business's units (plus a product's current unit if it
+  is no longer listed); the variant dialog starts with the industry's option names.
+- Tests: `VocabularyIntegrationTest` (backend), `words.spec.ts` (web and mobile).
+
 ------------------------------------------------------------------------
 
 # 0A. Development Strategy — MOCK FIRST, WEB + BACKEND FIRST

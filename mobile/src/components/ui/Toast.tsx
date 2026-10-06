@@ -6,6 +6,7 @@ import { create } from 'zustand'
 import { ApiError } from '@/services/api'
 import { colors, radius, shadow } from '@/theme/tokens'
 import { Text } from './Text'
+import { wordify } from '@/store/words'
 
 type Tone = 'success' | 'error' | 'warning' | 'info'
 
@@ -75,7 +76,7 @@ function ToastView({ t }: { t: ToastItem }) {
     >
       <Feather name={tone.icon} size={18} color={tone.color} style={{ marginTop: 1 }} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text weight="700" testID="toast-title">{t.title}</Text>
+        <Text weight="700" testID="toast-title">{wordify(t.title)}</Text>
         {t.message && <Text variant="small" color="muted">{t.message}</Text>}
       </View>
       {t.action && (

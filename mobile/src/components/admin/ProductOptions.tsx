@@ -9,13 +9,13 @@ import { Field, Input, QtyInput, Select, SwitchRow } from '@/components/ui/Form'
 import { Sheet } from '@/components/ui/Overlay'
 import { Text } from '@/components/ui/Text'
 import { toast } from '@/components/ui/Toast'
-import { UNITS } from '@/features/catalog'
 import { api, ApiError } from '@/services/api'
 import { openDocument } from '@/services/documents'
 import type { BatchRow, PricingMode, Product, SerialRow, UnitOption } from '@/services/types'
 import { useCan, useModule } from '@/store/auth'
 import { colors } from '@/theme/tokens'
 import { date, money, quantity, titleCase } from '@/utils/format'
+import { unitSelectOptions, W } from '@/store/words'
 
 const FRACTIONAL = ['KG', 'G', 'L', 'ML', 'M', 'TONNE', 'QUINTAL', 'SQFT', 'CFT', 'CM']
 
@@ -95,7 +95,7 @@ export function ProductOptionsSection({ value, onChange, baseUnit, error }: { va
             {value.units.length === 0 && <Text variant="xs" color="muted">E.g. 1 CASE = 12 {baseUnit}. Stock is always kept in {baseUnit}.</Text>}
             {value.units.map((u, i) => (
               <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-                <View style={{ flex: 1.2 }}><Field label="Unit"><Select label="Unit" value={u.unit} onChange={(x) => setUnit(i, { unit: x })} placeholder="Unit" options={UNITS.filter((x) => x !== baseUnit).map((x) => ({ value: x, label: x }))} /></Field></View>
+                <View style={{ flex: 1.2 }}><Field label="Unit"><Select label="Unit" value={u.unit} onChange={(x) => setUnit(i, { unit: x })} placeholder="Unit" options={unitSelectOptions(u.unit || undefined).filter((x) => x.value !== baseUnit)} /></Field></View>
                 <View style={{ flex: 1 }}><Field label={`= ${baseUnit}`}><QtyInput value={u.factor} onChangeText={(t) => setUnit(i, { factor: t })} accessibilityLabel="Factor" /></Field></View>
                 <IconButton icon="trash-2" label="Remove unit" color={colors.danger} onPress={() => set({ units: value.units.filter((_, idx) => idx !== i) })} />
               </View>
@@ -125,7 +125,7 @@ export function VariantsSection({ product }: { product: Product }) {
   const canWrite = useCan('PRODUCT_WRITE')
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [attrs, setAttrs] = useState([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }])
+  const [attrs, setAttrs] = useState(() => W.variantOptions.slice(0, 3).map((name) => ({ name, values: '' })))
   const variants = useQuery({ queryKey: ['variants', product.id], queryFn: () => api.get<Product[]>(`/api/v1/products/${product.id}/variants`), enabled: product.variantGroup })
   const generate = useMutation({
     mutationFn: () => api.post<Product[]>(`/api/v1/products/${product.id}/variants`, {

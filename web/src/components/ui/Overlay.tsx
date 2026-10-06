@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
 import { Field, Textarea } from './Form'
+import { wordify } from '@/stores/words'
 
 interface ModalProps {
   open: boolean
@@ -113,7 +114,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
     <Modal
       open={open}
       onClose={onClose}
-      title={title}
+      title={wordify(title)}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
@@ -124,7 +125,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
       }
     >
       <div className="stack">
-        <div className="small">{message}</div>
+        <div className="small">{wordify(message)}</div>
         {requireReason && (
           <Field label={reasonLabel} htmlFor="confirm-reason" required>
             <Textarea id="confirm-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />

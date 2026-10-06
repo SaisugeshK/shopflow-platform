@@ -18,6 +18,7 @@ import { initials, titleCase } from '@/utils/format'
 import { PLATFORM_NAV, STAFF_NAV, visible } from './navigation'
 import type { NavItem } from './navigation'
 import { BranchSwitcher } from '@/features/branches/BranchesPages'
+import { wordify } from '@/stores/words'
 
 const COLLAPSE_KEY = 'sf.sidebar.collapsed'
 
@@ -127,17 +128,17 @@ function NavEntry({ item, home }: { item: NavItem; home: string }) {
 
   if (!hasChildren) {
     return (
-      <NavLink to={item.to} end={item.to === home || item.to.endsWith('/new') || item.to === '/platform/tenants'} className={({ isActive }) => clsx('nav-item', isActive && 'active')} title={item.label}>
+      <NavLink to={item.to} end={item.to === home || item.to.endsWith('/new') || item.to === '/platform/tenants'} className={({ isActive }) => clsx('nav-item', isActive && 'active')} title={wordify(item.label)}>
         {Icon && <Icon size={18} aria-hidden />}
-        <span className="nav-label">{item.label}</span>
+        <span className="nav-label">{wordify(item.label)}</span>
       </NavLink>
     )
   }
   return (
     <div>
-      <button className={clsx('nav-item', childActive && !open && 'active')} onClick={() => setOpen((o) => !o)} aria-expanded={open} title={item.label}>
+      <button className={clsx('nav-item', childActive && !open && 'active')} onClick={() => setOpen((o) => !o)} aria-expanded={open} title={wordify(item.label)}>
         {Icon && <Icon size={18} aria-hidden />}
-        <span className="nav-label grow" style={{ textAlign: 'left' }}>{item.label}</span>
+        <span className="nav-label grow" style={{ textAlign: 'left' }}>{wordify(item.label)}</span>
         <ChevronDown size={14} className="chevron" style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} aria-hidden />
       </button>
       {open && (
@@ -149,7 +150,7 @@ function NavEntry({ item, home }: { item: NavItem; home: string }) {
               end
               className={({ isActive }) => clsx('nav-item', isActive && location.search === (c.to.includes('?') ? `?${c.to.split('?')[1]}` : location.search) && 'active')}
             >
-              <span className="nav-label">{c.label}</span>
+              <span className="nav-label">{wordify(c.label)}</span>
             </NavLink>
           ))}
         </div>
@@ -169,7 +170,7 @@ function GlobalSearch() {
   return (
     <form onSubmit={submit} className="search input-group has-clear" role="search">
       <Search size={16} className="prefix" aria-hidden />
-      <input ref={ref} className="input" style={{ height: 38 }} type="search" placeholder="Search orders, customers, products, invoices…" aria-label="Global search" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input ref={ref} className="input" style={{ height: 38 }} type="search" placeholder={wordify("Search orders, customers, products, invoices…")} aria-label="Global search" value={q} onChange={(e) => setQ(e.target.value)} />
       {q && <ClearButton onClear={() => { setQ(''); ref.current?.focus() }} />}
     </form>
   )

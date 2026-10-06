@@ -247,6 +247,8 @@ export interface Me {
   modules?: string[]
   /** A Super Admin's read-only support view of the business. */
   support?: boolean
+  /** The business's words and product units (§0B.15); absent for the Super Admin console. */
+  vocabulary?: { terms: Record<string, string>; units: string[] }
   /** The supplier behind a SUPPLIER login (supplier portal). */
   supplier?: { id: string; supplierCode: string; name: string }
 }

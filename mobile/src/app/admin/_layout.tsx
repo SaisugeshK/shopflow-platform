@@ -2,6 +2,7 @@ import { Redirect, Stack } from 'expo-router'
 import { homeFor } from '@/features/session'
 import { useAuthStore } from '@/store/auth'
 import { colors } from '@/theme/tokens'
+import { wordify } from '@/store/words'
 
 /** Owner/Admin area. Customers are redirected to the shop. */
 export default function AdminLayout() {
@@ -22,8 +23,8 @@ export default function AdminLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="search" options={{ title: 'Search' }} />
       <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
-      <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
-      <Stack.Screen name="product-form" options={{ title: 'Product' }} />
+      <Stack.Screen name="product/[id]" options={{ title: wordify('Product') }} />
+      <Stack.Screen name="product-form" options={{ title: wordify('Product') }} />
       <Stack.Screen name="categories" options={{ title: 'Categories' }} />
       <Stack.Screen name="stock" options={{ title: 'Stock' }} />
       <Stack.Screen name="movements" options={{ title: 'Stock movements' }} />
@@ -31,10 +32,10 @@ export default function AdminLayout() {
       <Stack.Screen name="purchase/[id]" options={{ title: 'Purchase' }} />
       <Stack.Screen name="purchase-new" options={{ title: 'Add purchase' }} />
       <Stack.Screen name="purchase-returns" options={{ title: 'Purchase returns' }} />
-      <Stack.Screen name="customer/[id]" options={{ title: 'Customer' }} />
-      <Stack.Screen name="customer-new" options={{ title: 'Add customer' }} />
-      <Stack.Screen name="suppliers" options={{ title: 'Suppliers' }} />
-      <Stack.Screen name="supplier/[id]" options={{ title: 'Supplier' }} />
+      <Stack.Screen name="customer/[id]" options={{ title: wordify('Customer') }} />
+      <Stack.Screen name="customer-new" options={{ title: wordify('Add customer') }} />
+      <Stack.Screen name="suppliers" options={{ title: wordify('Suppliers') }} />
+      <Stack.Screen name="supplier/[id]" options={{ title: wordify('Supplier') }} />
       <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
       <Stack.Screen name="invoice/[id]" options={{ title: 'Invoice' }} />
       <Stack.Screen name="invoice-new" options={{ title: 'Create invoice' }} />

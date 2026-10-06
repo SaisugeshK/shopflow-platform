@@ -394,3 +394,4 @@ input[type='number']::-webkit-inner-spin-button, input[type='number']::-webkit-o
 .revision-changes { margin: 4px 0 0; padding-left: 16px; color: var(--color-muted); }
 .quote-line { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .card > .auth-credit { padding: 0 16px 16px; margin-top: 0; }
+.units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 16px; }

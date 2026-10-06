@@ -247,6 +247,8 @@ export interface Me {
   memberships?: TenantChoice[]
   /** Module codes enabled for the business (§0B.6); menus of other modules are hidden. */
   modules?: string[]
+  /** The business's words and product units (§0B.15); absent for the Super Admin console. */
+  vocabulary?: { terms: Record<string, string>; units: string[] }
   /** A Super Admin's read-only support view (web only). */
   support?: boolean
   /** The supplier behind a SUPPLIER login (supplier portal). */

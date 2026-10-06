@@ -6,13 +6,14 @@ import type { ReactNode } from 'react'
 import type { Pagination as PaginationMeta } from '@/services/api'
 import { money, titleCase } from '@/utils/format'
 import { Button } from './Button'
+import { wordify, wordifyNode } from '@/stores/words'
 
 export function Card({ title, actions, children, className, bodyClassName, padded = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string; padded?: boolean }) {
   return (
     <section className={clsx('card', className)}>
       {(title || actions) && (
         <header className="card-header">
-          {typeof title === 'string' ? <h3>{title}</h3> : title}
+          {typeof title === 'string' ? <h3>{wordify(title)}</h3> : title}
           {actions && <div className="row">{actions}</div>}
         </header>
       )}
@@ -46,7 +47,7 @@ export function StatCard({ label, value, format = money, hint, icon, tone = 'pri
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.04 }}
     >
-      <span className="stat-label">{label}</span>
+      <span className="stat-label">{wordify(label)}</span>
       <span className="stat-value"><AnimatedNumber value={value} format={format} /></span>
       {hint && <span className="stat-hint">{hint}</span>}
       {icon && <span className={`stat-icon tone-${tone}`} aria-hidden>{icon}</span>}
@@ -97,7 +98,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, sort, onSortCh
                   onClick={() => c.sortKey && onSortChange?.(`${c.sortKey},${active && sortDir !== 'desc' ? 'desc' : 'asc'}`)}
                 >
                   <span className="row" style={{ gap: 4, display: 'inline-flex', flexWrap: 'nowrap' }}>
-                    {c.header}
+                    {wordify(c.header)}
                     {active && (sortDir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
                   </span>
                 </th>
@@ -115,7 +116,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, sort, onSortCh
               tabIndex={onRowClick ? 0 : undefined}
             >
               {columns.map((c) => (
-                <td key={c.key} data-label={c.header || undefined} className={clsx(c.align === 'right' && 'right num', c.className, c.priority === 'low' && 'col-low', !c.header && 'cell-actions')}>
+                <td key={c.key} data-label={wordify(c.header) || undefined} className={clsx(c.align === 'right' && 'right num', c.className, c.priority === 'low' && 'col-low', !c.header && 'cell-actions')}>
                   {c.render(row)}
                 </td>
               ))}
@@ -163,7 +164,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: { tabs:
     <div className="tabs" role="tablist" aria-label={label}>
       {tabs.map((t) => (
         <button key={t.value} role="tab" className="tab" aria-selected={value === t.value} onClick={() => onChange(t.value)}>
-          {t.label}
+          {wordify(t.label)}
           {t.count !== undefined && <span className="badge badge-neutral" style={{ marginLeft: 6, height: 20 }}>{t.count}</span>}
         </button>
       ))}
@@ -233,9 +234,9 @@ export function PageHeader({ title, subtitle, actions, breadcrumb }: { title: Re
   return (
     <div className="page-header">
       <div className="page-header-title">
-        {breadcrumb && <div className="breadcrumb">{breadcrumb}</div>}
-        <h1>{title}</h1>
-        {subtitle && <div className="subtitle">{subtitle}</div>}
+        {breadcrumb && <div className="breadcrumb">{wordifyNode(breadcrumb)}</div>}
+        <h1>{wordify(title)}</h1>
+        {subtitle && <div className="subtitle">{wordify(subtitle)}</div>}
       </div>
       {actions && <div className="row page-header-actions">{actions}</div>}
     </div>
@@ -247,7 +248,7 @@ export function KeyValue({ items }: { items: [string, ReactNode][] }) {
     <dl className="kv">
       {items.map(([k, v]) => (
         <div key={k} style={{ display: 'contents' }}>
-          <dt>{k}</dt>
+          <dt>{wordify(k)}</dt>
           <dd>{v ?? '—'}</dd>
         </div>
       ))}

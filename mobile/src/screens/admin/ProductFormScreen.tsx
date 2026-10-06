@@ -11,11 +11,12 @@ import { Alert, Loading } from '@/components/ui/Feedback'
 import { Field, Input, MoneyInput, QtyInput, Select, SwitchRow } from '@/components/ui/Form'
 import { Screen } from '@/components/ui/Screen'
 import { toast } from '@/components/ui/Toast'
-import { UNITS, useCategories, useTaxRates } from '@/features/catalog'
+import { useCategories, useTaxRates } from '@/features/catalog'
 import { useForm } from '@/hooks/useForm'
 import { api, ApiError } from '@/services/api'
 import type { Product } from '@/services/types'
 import { useModule } from '@/store/auth'
+import { unitSelectOptions } from '@/store/words'
 
 const schema = z.object({
   sku: z.string().trim().refine((v) => !v || /^[A-Za-z0-9._-]{2,60}$/.test(v), 'Letters, digits, dot, dash or underscore'),
@@ -106,7 +107,7 @@ export default function ProductFormScreen() {
                 options={(categories.data ?? []).filter((c) => c.active).map((c) => ({ value: c.id, label: c.name }))} />
             </Field>
             <Field label="Brand"><Input value={v.brand} onChangeText={(t) => form.set('brand', t)} accessibilityLabel="Brand" /></Field>
-            <Field label="Unit" required><Select label="Unit" value={v.unit} onChange={(u) => form.set('unit', u)} options={UNITS.map((u) => ({ value: u, label: u }))} /></Field>
+            <Field label="Unit" required><Select label="Unit" value={v.unit} onChange={(u) => form.set('unit', u)} options={unitSelectOptions(v.unit)} /></Field>
             <Field label="Description"><Input value={v.description} onChangeText={(t) => form.set('description', t)} multiline accessibilityLabel="Description" /></Field>
           </View>
         </Card>

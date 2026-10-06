@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ApiError } from '@/services/api'
+import { wordify } from '@/stores/words'
 
 type Tone = 'success' | 'error' | 'warning' | 'info'
 export interface ToastOptions {
@@ -66,7 +67,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               transition={{ duration: 0.2 }}
             >
               <div className="grow">
-                <strong>{t.title}</strong>
+                <strong>{wordify(t.title)}</strong>
                 {t.message && <div className="small muted">{t.message}</div>}
               </div>
               {t.action && (
