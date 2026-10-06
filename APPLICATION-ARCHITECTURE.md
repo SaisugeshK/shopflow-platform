@@ -479,7 +479,7 @@ Every business sees the words and units of its trade (migration V14, `tenancy/Vo
 
 | Industry | Product | Customer | Supplier | Units offered (codes) | Variant options |
 |---|---|---|---|---|---|
-| General | Product | Customer | Supplier | PCS BOX NOS PACK SET DOZEN KG | Size, Colour |
+| General | Product | Customer | Supplier | PCS BOX NOS PACK CASE CARTON SET DOZEN KG L M | Size, Colour |
 | Grocery | Item | Retailer | Distributor | PCS BOX PACK CASE CARTON KG G L ML BAG | Pack size, Flavour |
 | Textile | Article | Dealer | Mill | PCS BOX M ROLL SET DOZEN KG BUNDLE | Size, Colour, Weight |
 | Construction | Material | Contractor | Manufacturer | PCS BOX BAG KG TONNE CFT SQFT NOS LOAD | Grade, Size |

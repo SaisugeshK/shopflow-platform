@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 /**
@@ -20,6 +20,8 @@ export async function login(page: Page, mobile10: string, path = '/login') {
     if (!text && (await heading.isVisible())) break
     const seconds = Number(/wait (\d+) seconds/.exec(text)?.[1] ?? (text ? 'NaN' : '1'))
     if (Number.isNaN(seconds)) throw new Error(`OTP request failed: ${text}`)
+    // Parallel tests share demo numbers: waiting out the resend cooldown must not eat the test's own time.
+    test.info().setTimeout(test.info().timeout + (seconds + 5) * 1000)
     await page.waitForTimeout((seconds + 1) * 1000)
   }
   await expect(heading).toBeVisible()

@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 /**
  * Signs in through the real OTP screens. The code is read from the demo-mode label (dev profile shows the mock OTP);
@@ -14,6 +14,8 @@ export async function login(page: Page, mobile10: string) {
     const text = await page.locator('body').innerText()
     const seconds = Number(/wait (\d+) second/i.exec(text)?.[1] ?? 'NaN')
     if (Number.isNaN(seconds)) throw new Error(`OTP request failed: ${text.slice(0, 300)}`)
+    // Parallel tests share demo numbers: waiting out the resend cooldown must not eat the test's own time.
+    test.info().setTimeout(test.info().timeout + (seconds + 5) * 1000)
     await page.waitForTimeout((seconds + 1) * 1000)
   }
   await page.getByTestId('otp-input').fill((await demo.textContent())!.trim())

@@ -11,7 +11,7 @@ import static com.shopflow.tenancy.ModuleCode.*;
  * categories; everything stays editable afterwards. Pharma is intentionally absent until a compliance review.
  */
 public enum IndustryTemplate {
-    GENERAL("General trading", "Plain catalogue, no special options", Set.of(), List.of("PCS", "BOX", "NOS", "PACK", "SET", "DOZEN", "KG"), List.of()),
+    GENERAL("General trading", "Plain catalogue, no special options", Set.of(), List.of("PCS", "BOX", "NOS", "PACK", "CASE", "CARTON", "SET", "DOZEN", "KG", "L", "M"), List.of()),
     GROCERY("Grocery / FMCG / kirana wholesale", "Batch + expiry, case/pack/piece units, MRP, schemes, barcode",
             Set.of(BATCH_EXPIRY, UOM_CONVERSIONS, SCHEMES, BARCODE_LABELS),
             List.of("PCS", "BOX", "PACK", "CASE", "CARTON", "KG", "G", "L", "ML", "BAG"),

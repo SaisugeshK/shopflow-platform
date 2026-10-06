@@ -8449,6 +8449,124 @@
       "name": "Business Settings",
       "item": [
         {
+          "name": "Words and units used in the screens",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/business/vocabulary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "business",
+                "vocabulary"
+              ]
+            },
+            "description": "Words and units used in the screens",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rename words and choose units",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Client-Type",
+                "value": "postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/business/vocabulary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "business",
+                "vocabulary"
+              ]
+            },
+            "description": "Rename words and choose units\n\nEmpty values go back to the industry defaults.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"terms\": {},\n  \"units\": [\n    \"string\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"no server error (200 expected with valid data)\", () => pm.expect(pm.response.code).to.be.below(500));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"standard envelope\", () => { pm.expect(body).to.have.property(\"success\"); pm.expect(body).to.have.property(\"requestId\"); });",
+                  "if (body.success === false) { pm.test(\"error format\", () => { pm.expect(body.error).to.have.property(\"code\"); pm.expect(body.error).to.have.property(\"message\"); }); }",
+                  "if (body.pagination) { pm.test(\"pagination\", () => { pm.expect(body.pagination).to.have.keys(\"page\",\"pageSize\",\"totalItems\",\"totalPages\"); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get(\"runWriteExamples\") !== \"true\") pm.execution.skipRequest();"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Upload the business logo",
           "request": {
             "method": "POST",
